@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 import {
   BadRequestException,
   Injectable,
@@ -47,7 +46,7 @@ export class UsersService {
 
     await resend.emails.send({
       from: 'Create Your Restaurant <onboarding@resend.dev>',
-      to: email,
+      to: [email],
       subject: 'Your login code',
       html: `<p>Your login code is <strong>${loginCode}</strong>. It expires in 2 minutes.</p>`,
     });
