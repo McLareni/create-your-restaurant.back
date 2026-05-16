@@ -4,10 +4,15 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { compare, hash } from 'bcrypt';
-import { randomInt } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { Resend } from 'resend';
 import { EnumRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+
+type SessionMetadata = {
+  userAgent?: string;
+  ipAddress?: string;
+};
 
 @Injectable()
 export class UsersService {
@@ -56,7 +61,11 @@ export class UsersService {
     };
   }
 
-  async verifyLoginCode(email: string, code: string) {
+  async verifyLoginCode(
+    email: string,
+    code: string,
+    sessionMetadata: SessionMetadata = {},
+  ) {
     const user = await this.prismaService.user.findUnique({
       where: { email },
     });
@@ -75,16 +84,30 @@ export class UsersService {
       throw new UnauthorizedException('Invalid code');
     }
 
+    const sessionExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const sessionToken = randomUUID();
+
     await this.prismaService.user.update({
-      where: { email },
+      where: { id: user.id },
       data: {
         loginCodeHash: null,
         loginCodeExpiresAt: null,
+        sessions: {
+          create: {
+            token: sessionToken,
+            expiresAt: sessionExpiresAt,
+            userAgent: sessionMetadata.userAgent,
+            ipAddress: sessionMetadata.ipAddress,
+          },
+        },
       },
     });
 
     return {
       message: `Login for ${email} successful`,
+      session: {
+        token: sessionToken,
+      },
     };
   }
 }

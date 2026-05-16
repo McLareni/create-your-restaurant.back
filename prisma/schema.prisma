@@ -16,10 +16,22 @@ model User {
   loginCodeHash String?
   loginCodeExpiresAt DateTime?
   createdAt DateTime @default(now())
+  sessions   Session[]
 }
 
 enum EnumRole {
   OWNER
   STAFF
   CUSTOMER
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique 
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String? 
+  ipAddress String?  
 }

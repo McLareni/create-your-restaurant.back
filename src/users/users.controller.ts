@@ -1,5 +1,6 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Req } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { RequestLoginCodeDto } from './dto/request-login-code.dto';
 import { VerifyLoginCodeDto } from './dto/verify-login-code.dto';
 import { UsersService } from './users.service';
@@ -33,14 +34,30 @@ export class UsersController {
     schema: {
       example: {
         message: 'Login for user@example.com successful',
+        session: {
+          token: '8c3e1b06-4690-4a0b-9f4a-5c0d6a321f80',
+          expiresAt: '2026-06-15T13:40:00.000Z',
+        },
       },
     },
   })
   @Post('verify-login-code')
-  verifyLoginCode(@Body() verifyLoginCodeDto: VerifyLoginCodeDto) {
+  verifyLoginCode(
+    @Body() verifyLoginCodeDto: VerifyLoginCodeDto,
+    @Req() request: Request,
+  ) {
+    const forwardedFor = request.headers['x-forwarded-for'];
+    const ipAddress = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : forwardedFor?.split(',')[0]?.trim() || request.ip;
+
     return this.usersService.verifyLoginCode(
       verifyLoginCodeDto.email,
       verifyLoginCodeDto.code,
+      {
+        userAgent: request.get('user-agent') ?? undefined,
+        ipAddress,
+      },
     );
   }
 }

@@ -60,17 +60,39 @@ describe('UsersController (e2e)', () => {
   it('/users/verify-login-code (POST) should verify code', async () => {
     usersServiceMock.verifyLoginCode.mockResolvedValue({
       message: 'Login successful',
+      session: {
+        token: 'session-token',
+        expiresAt: '2026-06-15T13:40:00.000Z',
+      },
     });
 
     await request(app.getHttpServer())
       .post('/users/verify-login-code')
+      .set('x-forwarded-for', '203.0.113.10')
       .send({ email: 'user@example.com', code: '123456' })
       .expect(201)
-      .expect({ message: 'Login successful' });
+      .expect({
+        message: 'Login successful',
+        session: {
+          token: 'session-token',
+          expiresAt: '2026-06-15T13:40:00.000Z',
+        },
+      });
 
     expect(usersServiceMock.verifyLoginCode).toHaveBeenCalledWith(
       'user@example.com',
       '123456',
+      expect.anything(),
+    );
+
+    const verifyLoginCodeCalls = usersServiceMock.verifyLoginCode.mock
+      .calls as [string, string, { userAgent?: string; ipAddress?: string }][];
+    const sessionMetadata = verifyLoginCodeCalls[0]?.[2];
+
+    expect(sessionMetadata).toEqual(
+      expect.objectContaining({
+        ipAddress: '203.0.113.10',
+      }),
     );
   });
 
