@@ -1,5 +1,5 @@
 import { IsEmail, IsEnum, IsOptional, IsString } from 'class-validator';
-import { EnumRole } from '../../../generated/prisma/enums';
+import { EnumRole } from '@prisma/client';
 
 export class CreateUserDto {
   @IsEmail()

@@ -6,21 +6,25 @@ import {
 import { compare, hash } from 'bcrypt';
 import { randomInt } from 'node:crypto';
 import { Resend } from 'resend';
-import { EnumRole } from '../../generated/prisma/enums';
+import { EnumRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class UsersService {
-  private readonly resend = new Resend(process.env.RESEND_API_KEY);
-
   constructor(private readonly prismaService: PrismaService) {}
 
-  async requestLoginCode(email: string) {
+  private getResendClient() {
     const apiKey = process.env.RESEND_API_KEY;
 
     if (!apiKey) {
       throw new BadRequestException('Email service is not configured');
     }
+
+    return new Resend(apiKey);
+  }
+
+  async requestLoginCode(email: string) {
+    const resend = this.getResendClient();
 
     const loginCode = String(randomInt(0, 1000000)).padStart(6, '0');
     const loginCodeHash = await hash(loginCode, 10);
@@ -40,7 +44,7 @@ export class UsersService {
       },
     });
 
-    await this.resend.emails.send({
+    await resend.emails.send({
       from: 'Create Your Restaurant <onboarding@resend.dev>',
       to: email,
       subject: 'Your login code',
