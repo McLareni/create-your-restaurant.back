@@ -86,6 +86,7 @@ export class UsersService {
 
     const sessionExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const sessionToken = randomUUID();
+    const sessionTokenHash = await hash(sessionToken, 10);
 
     await this.prismaService.user.update({
       where: { id: user.id },
@@ -94,7 +95,7 @@ export class UsersService {
         loginCodeExpiresAt: null,
         sessions: {
           create: {
-            token: sessionToken,
+            token: sessionTokenHash,
             expiresAt: sessionExpiresAt,
             userAgent: sessionMetadata.userAgent,
             ipAddress: sessionMetadata.ipAddress,
