@@ -9,6 +9,7 @@ describe('RestaurantsController (e2e)', () => {
   let app: INestApplication<App>;
   const restaurantsServiceMock = {
     create: jest.fn(),
+    checkSlug: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -78,6 +79,29 @@ describe('RestaurantsController (e2e)', () => {
         currency: 'USD',
         language: 'UA',
       })
+      .expect(400);
+  });
+
+  it('/restaurants/check-restaurant-slug (POST) should return slug availability', async () => {
+    restaurantsServiceMock.checkSlug.mockResolvedValue({
+      isAvailable: true,
+    });
+
+    await request(app.getHttpServer())
+      .post('/restaurants/check-restaurant-slug')
+      .send({ slug: 'pizza-house' })
+      .expect(201)
+      .expect({ isAvailable: true });
+
+    expect(restaurantsServiceMock.checkSlug).toHaveBeenCalledWith(
+      'pizza-house',
+    );
+  });
+
+  it('/restaurants/check-restaurant-slug (POST) should validate slug', async () => {
+    await request(app.getHttpServer())
+      .post('/restaurants/check-restaurant-slug')
+      .send({ slug: '' })
       .expect(400);
   });
 

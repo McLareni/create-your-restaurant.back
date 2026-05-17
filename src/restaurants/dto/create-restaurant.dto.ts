@@ -1,21 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { EnumCurrency, EnumLanguage, EnumTypeRestaurant } from '@prisma/client';
-import {
-  IsEnum,
-  IsInt,
-  IsOptional,
-  IsString,
-  MaxLength,
-  Min,
-} from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateRestaurantDto {
-  @ApiProperty({ example: 1 })
-  @IsInt()
-  @Min(1)
-  ownerId!: number;
-
   @ApiProperty({ example: 'Pizza House' })
   @IsString()
   @MaxLength(120)
