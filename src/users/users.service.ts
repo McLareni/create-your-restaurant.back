@@ -126,4 +126,25 @@ export class UsersService {
       message: 'Logout successful',
     };
   }
+
+  async validateSessionToken(sessionToken: string) {
+    if (!sessionToken) {
+      throw new UnauthorizedException('Session token is required');
+    }
+
+    // Find all sessions and compare with the provided token
+    const sessions = await this.prismaService.session.findMany({
+      include: { user: true },
+    });
+
+    for (const session of sessions) {
+      const isTokenValid = await compare(sessionToken, session.token);
+
+      if (isTokenValid && session.expiresAt > new Date()) {
+        return session.user;
+      }
+    }
+
+    throw new UnauthorizedException('Invalid or expired session token');
+  }
 }
