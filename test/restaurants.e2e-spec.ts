@@ -24,6 +24,10 @@ describe('RestaurantsController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.use((req, _res, next) => {
+      (req as { user?: { id: number } }).user = { id: 1 };
+      next();
+    });
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -35,7 +39,6 @@ describe('RestaurantsController (e2e)', () => {
 
   it('/restaurants (POST) should create restaurant', async () => {
     const payload = {
-      ownerId: 1,
       title: 'Pizza House',
       slug: 'pizza-house',
       type: 'CAFE',
@@ -65,14 +68,13 @@ describe('RestaurantsController (e2e)', () => {
         },
       });
 
-    expect(restaurantsServiceMock.create).toHaveBeenCalledWith(payload);
+    expect(restaurantsServiceMock.create).toHaveBeenCalledWith(payload, 1);
   });
 
   it('/restaurants (POST) should validate enum fields', async () => {
     await request(app.getHttpServer())
       .post('/restaurants')
       .send({
-        ownerId: 1,
         title: 'Pizza House',
         slug: 'pizza-house',
         type: 'INVALID_TYPE',
