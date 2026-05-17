@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import cookieParser from 'cookie-parser';
 jest.mock('./../src/users/users.service', () => ({
   UsersService: class UsersService {},
 }));
@@ -15,6 +16,7 @@ describe('UsersController (e2e)', () => {
     requestLoginCode: jest.fn(),
     verifyLoginCode: jest.fn(),
     logout: jest.fn(),
+    getMe: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -29,6 +31,8 @@ describe('UsersController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+    app.use(cookieParser());
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, transform: true }),
     );
@@ -127,6 +131,42 @@ describe('UsersController (e2e)', () => {
       .post('/users/logout')
       .send({ token: 'invalid-token' })
       .expect(500);
+  });
+
+  it('/users/me (GET) should return current user', async () => {
+    usersServiceMock.getMe.mockResolvedValue({
+      user: {
+        id: 1,
+        email: 'user@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+        photo: null,
+        role: 'OWNER',
+        createdAt: '2026-05-17T10:00:00.000Z',
+      },
+    });
+
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', ['gustio_session=session-token-123'])
+      .expect(200)
+      .expect({
+        user: {
+          id: 1,
+          email: 'user@example.com',
+          firstName: 'John',
+          lastName: 'Doe',
+          photo: null,
+          role: 'OWNER',
+          createdAt: '2026-05-17T10:00:00.000Z',
+        },
+      });
+
+    expect(usersServiceMock.getMe).toHaveBeenCalledWith('session-token-123');
+  });
+
+  it('/users/me (GET) should fail without cookie', async () => {
+    await request(app.getHttpServer()).get('/users/me').expect(400);
   });
 
   afterEach(async () => {

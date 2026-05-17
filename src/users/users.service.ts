@@ -132,7 +132,6 @@ export class UsersService {
       throw new UnauthorizedException('Session token is required');
     }
 
-    // Find all sessions and compare with the provided token
     const sessions = await this.prismaService.session.findMany({
       include: { user: true },
     });
@@ -146,5 +145,21 @@ export class UsersService {
     }
 
     throw new UnauthorizedException('Invalid or expired session token');
+  }
+
+  async getMe(sessionToken: string) {
+    const user = await this.validateSessionToken(sessionToken);
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        photo: user.photo,
+        role: user.role,
+        createdAt: user.createdAt,
+      },
+    };
   }
 }
