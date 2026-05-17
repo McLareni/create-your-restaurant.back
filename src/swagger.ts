@@ -4,18 +4,17 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 export function setupSwagger(app: INestApplication) {
   const config = new DocumentBuilder()
     .setTitle('Create Your Restaurant API')
-    .setDescription('API documentation for auth endpoints')
+    .setDescription('API documentation for Create Your Restaurant service')
     .setVersion('1.0')
-    .addBearerAuth(
+    .addCookieAuth(
+      'gustio_session',
       {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        name: 'JWT',
-        description: 'Enter JWT token',
-        in: 'header',
+        type: 'apiKey',
+        in: 'cookie',
+        name: 'gustio_session',
+        description: 'Session token from cookie',
       },
-      'bearer',
+      'gustio_session',
     )
     .build();
 

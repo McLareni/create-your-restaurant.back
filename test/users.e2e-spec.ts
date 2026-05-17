@@ -31,7 +31,6 @@ describe('UsersController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     app.use(cookieParser());
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, transform: true }),
@@ -116,7 +115,7 @@ describe('UsersController (e2e)', () => {
     await request(app.getHttpServer())
       .post('/users/logout')
       .send({ token: 'session-token-123' })
-      .expect(201)
+      .expect(200)
       .expect({ message: 'Logout successful' });
 
     expect(usersServiceMock.logout).toHaveBeenCalledWith('session-token-123');

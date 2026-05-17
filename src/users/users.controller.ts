@@ -3,10 +3,17 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Post,
   Req,
 } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiCookieAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { Request } from 'express';
 import { LogoutDto } from './dto/logout.dto';
 import { RequestLoginCodeDto } from './dto/request-login-code.dto';
@@ -49,6 +56,10 @@ export class UsersController {
       },
     },
   })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid or expired login code',
+  })
   @Post('verify-login-code')
   verifyLoginCode(
     @Body() verifyLoginCodeDto: VerifyLoginCodeDto,
@@ -80,12 +91,14 @@ export class UsersController {
       },
     },
   })
+  @HttpCode(200)
   @Post('logout')
   logout(@Body() logoutDto: LogoutDto) {
     return this.usersService.logout(logoutDto.token);
   }
 
   @ApiOperation({ summary: 'Get current user info' })
+  @ApiCookieAuth('gustio_session')
   @ApiResponse({
     status: 200,
     description: 'Current user fetched successfully',
@@ -102,6 +115,14 @@ export class UsersController {
         },
       },
     },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Session token is required',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid or expired session token',
   })
   @Get('me')
   me(@Req() request: Request) {
