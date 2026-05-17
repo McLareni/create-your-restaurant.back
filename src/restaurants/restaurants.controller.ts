@@ -1,5 +1,11 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, HttpCode, Post, Req } from '@nestjs/common';
+import {
+  ApiBody,
+  ApiCookieAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 import { RestaurantsService } from './restaurants.service';
 import { CheckSlugDto } from './dto/ckeck-restaurant-slug.dto';
@@ -11,6 +17,7 @@ export class RestaurantsController {
   constructor(private readonly restaurantsService: RestaurantsService) {}
 
   @ApiOperation({ summary: 'Create restaurant' })
+  @ApiCookieAuth('gustio_session')
   @ApiBody({ type: CreateRestaurantDto })
   @ApiResponse({
     status: 201,
@@ -31,6 +38,8 @@ export class RestaurantsController {
       },
     },
   })
+  @ApiResponse({ status: 400, description: 'Session token is required' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
   @Post()
   async create(
     @Body() createRestaurantDto: CreateRestaurantDto,
@@ -40,6 +49,7 @@ export class RestaurantsController {
   }
 
   @ApiOperation({ summary: 'Check restaurant slug availability' })
+  @ApiCookieAuth('gustio_session')
   @ApiBody({ type: CheckSlugDto })
   @ApiResponse({
     status: 200,
@@ -50,6 +60,9 @@ export class RestaurantsController {
       },
     },
   })
+  @ApiResponse({ status: 400, description: 'Session token is required' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
+  @HttpCode(200)
   @Post('check-restaurant-slug')
   checkSlug(@Body() checkSlugDto: CheckSlugDto) {
     return this.restaurantsService.checkSlug(checkSlugDto.slug);

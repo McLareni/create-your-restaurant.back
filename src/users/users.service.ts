@@ -150,6 +150,10 @@ export class UsersService {
   async getMe(sessionToken: string) {
     const user = await this.validateSessionToken(sessionToken);
 
+    const restaurants = await this.prismaService.restaurant.findMany({
+      where: { ownerId: user.id },
+    });
+
     return {
       user: {
         id: user.id,
@@ -158,7 +162,9 @@ export class UsersService {
         lastName: user.lastName,
         photo: user.photo,
         role: user.role,
-        createdAt: user.createdAt,
+        restaurants: restaurants.map((restaurant) => ({
+          name: restaurant.title,
+        })),
       },
     };
   }
