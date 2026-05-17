@@ -60,4 +60,20 @@ export class UsersController {
       },
     );
   }
+
+  @ApiOperation({ summary: 'Logout' })
+  @ApiBody({ type: VerifyLoginCodeDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Logout successful',
+    schema: {
+      example: {
+        message: 'Logout successful',
+      },
+    },
+  })
+  @Post('logout')
+  logout(@Body() { token }: { token: string }) {
+    return this.usersService.logout(token);
+  }
 }

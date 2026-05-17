@@ -111,4 +111,15 @@ export class UsersService {
       },
     };
   }
+
+  async logout(sessionToken: string) {
+    const sessionTokenHash = await hash(sessionToken, 10);
+    await this.prismaService.session.deleteMany({
+      where: { token: sessionTokenHash },
+    });
+
+    return {
+      message: 'Logout successful',
+    };
+  }
 }
