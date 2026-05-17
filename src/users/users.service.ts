@@ -113,6 +113,10 @@ export class UsersService {
   }
 
   async logout(sessionToken: string) {
+    if (!sessionToken) {
+      throw new BadRequestException('Session token is required');
+    }
+
     const sessionTokenHash = await hash(sessionToken, 10);
     await this.prismaService.session.deleteMany({
       where: { token: sessionTokenHash },

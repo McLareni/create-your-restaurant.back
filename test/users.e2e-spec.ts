@@ -14,6 +14,7 @@ describe('UsersController (e2e)', () => {
   const usersServiceMock = {
     requestLoginCode: jest.fn(),
     verifyLoginCode: jest.fn(),
+    logout: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -101,6 +102,31 @@ describe('UsersController (e2e)', () => {
       .post('/users/verify-login-code')
       .send({ email: 'user@example.com', code: '12ab56' })
       .expect(400);
+  });
+
+  it('/users/logout (POST) should logout successfully', async () => {
+    usersServiceMock.logout.mockResolvedValue({
+      message: 'Logout successful',
+    });
+
+    await request(app.getHttpServer())
+      .post('/users/logout')
+      .send({ token: 'session-token-123' })
+      .expect(201)
+      .expect({ message: 'Logout successful' });
+
+    expect(usersServiceMock.logout).toHaveBeenCalledWith('session-token-123');
+  });
+
+  it('/users/logout (POST) should handle invalid token', async () => {
+    usersServiceMock.logout.mockRejectedValue(
+      new Error('Invalid or expired session'),
+    );
+
+    await request(app.getHttpServer())
+      .post('/users/logout')
+      .send({ token: 'invalid-token' })
+      .expect(500);
   });
 
   afterEach(async () => {
