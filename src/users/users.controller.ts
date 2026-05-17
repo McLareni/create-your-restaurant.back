@@ -1,4 +1,11 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { LogoutDto } from './dto/logout.dto';
@@ -76,5 +83,35 @@ export class UsersController {
   @Post('logout')
   logout(@Body() logoutDto: LogoutDto) {
     return this.usersService.logout(logoutDto.token);
+  }
+
+  @ApiOperation({ summary: 'Get current user info' })
+  @ApiResponse({
+    status: 200,
+    description: 'Current user fetched successfully',
+    schema: {
+      example: {
+        user: {
+          id: 1,
+          email: 'user@example.com',
+          firstName: 'John',
+          lastName: 'Doe',
+          photo: 'https://example.com/photo.jpg',
+          role: 'OWNER',
+          createdAt: '2026-05-17T10:00:00.000Z',
+        },
+      },
+    },
+  })
+  @Get('me')
+  me(@Req() request: Request) {
+    const token = (request.cookies as Record<string, string> | undefined)
+      ?.gustio_session;
+
+    if (!token) {
+      throw new BadRequestException('Session token is required');
+    }
+
+    return this.usersService.getMe(token);
   }
 }

@@ -1,24 +1,14 @@
-import {
-  Body,
-  Controller,
-  Post,
-  BadRequestException,
-  Req,
-} from '@nestjs/common';
-import type { Request } from 'express';
+import { Body, Controller, Post, Req } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 import { RestaurantsService } from './restaurants.service';
 import { CheckSlugDto } from './dto/ckeck-restaurant-slug.dto';
-import { UsersService } from '../users/users.service';
+import type { AuthenticatedRequest } from './middleware/session-auth.middleware';
 
 @ApiTags('Restaurants')
 @Controller('restaurants')
 export class RestaurantsController {
-  constructor(
-    private readonly restaurantsService: RestaurantsService,
-    private readonly usersService: UsersService,
-  ) {}
+  constructor(private readonly restaurantsService: RestaurantsService) {}
 
   @ApiOperation({ summary: 'Create restaurant' })
   @ApiBody({ type: CreateRestaurantDto })
@@ -44,17 +34,9 @@ export class RestaurantsController {
   @Post()
   async create(
     @Body() createRestaurantDto: CreateRestaurantDto,
-    @Req() request: Request,
+    @Req() request: AuthenticatedRequest,
   ) {
-    const token = (request.cookies as Record<string, string>)?.gustio_session;
-
-    if (!token) {
-      throw new BadRequestException('Session token is required');
-    }
-
-    const user = await this.usersService.validateSessionToken(token);
-
-    return this.restaurantsService.create(createRestaurantDto, user.id);
+    return this.restaurantsService.create(createRestaurantDto, request.user.id);
   }
 
   @ApiOperation({ summary: 'Check restaurant slug availability' })
