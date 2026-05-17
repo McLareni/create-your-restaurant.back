@@ -1,6 +1,7 @@
 import { Body, Controller, Post, Req } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { LogoutDto } from './dto/logout.dto';
 import { RequestLoginCodeDto } from './dto/request-login-code.dto';
 import { VerifyLoginCodeDto } from './dto/verify-login-code.dto';
 import { UsersService } from './users.service';
@@ -62,7 +63,7 @@ export class UsersController {
   }
 
   @ApiOperation({ summary: 'Logout' })
-  @ApiBody({ type: VerifyLoginCodeDto })
+  @ApiBody({ type: LogoutDto })
   @ApiResponse({
     status: 200,
     description: 'Logout successful',
@@ -73,7 +74,7 @@ export class UsersController {
     },
   })
   @Post('logout')
-  logout(@Body() { token }: { token: string }) {
-    return this.usersService.logout(token);
+  logout(@Body() logoutDto: LogoutDto) {
+    return this.usersService.logout(logoutDto.token);
   }
 }

@@ -7,16 +7,17 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  firstName String?
-  lastName  String?
-  photo     String?
-  role      EnumRole
-  loginCodeHash String?
+  id                 Int       @id @default(autoincrement())
+  email              String    @unique
+  firstName          String?
+  lastName           String?
+  photo              String?
+  role               EnumRole
+  loginCodeHash      String?
   loginCodeExpiresAt DateTime?
-  createdAt DateTime @default(now())
-  sessions   Session[]
+  createdAt          DateTime  @default(now())
+  sessions           Session[]
+  restaurants        Restaurant[]
 }
 
 enum EnumRole {
@@ -29,9 +30,62 @@ model Session {
   id        String   @id @default(uuid())
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String   @unique 
+  token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
-  userAgent String? 
-  ipAddress String?  
+  userAgent String?
+  ipAddress String?
 }
+
+model Restaurant {
+  id          Int               @id @default(autoincrement())
+  title       String
+  slug        String            @unique
+  type        EnumTypeRestaurant
+  currency    EnumCurrency
+  phoneNumber String?
+  city        String?
+  language    EnumLanguage
+  ownerId     Int
+  owner       User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
+
+enum EnumLanguage {
+  EN
+  FR
+  ES
+  DE
+  IT
+  RU
+  CN
+  JP
+  PL
+  UA
+}
+
+enum EnumCurrency {
+  USD
+  EUR
+  GBP
+  JPY
+  CNY
+  RUB
+  PLN
+  UAH
+}
+
+enum EnumTypeRestaurant {
+  FAST_FOOD
+  CASUAL_DINING
+  FINE_DINING
+  CAFE
+  BUFFET
+  FOOD_TRUCK
+}
+
+model Image {
+  id          String            @id @default(uuid())
+  url         String
+  createdAt   DateTime          @default(now())
+}
+
