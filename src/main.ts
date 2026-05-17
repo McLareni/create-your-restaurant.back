@@ -9,7 +9,7 @@ async function bootstrap() {
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
 
   app.enableCors({
-    origin: frontendUrl,
+    origin: [frontendUrl, 'http://localhost:3000'],
     credentials: true,
   });
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call
