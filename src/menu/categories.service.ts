@@ -1,0 +1,99 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { UpdateCategoryDto } from './dto/update-category.dto';
+
+@Injectable()
+export class CategoriesService {
+  constructor(private readonly prismaService: PrismaService) {}
+
+  async createCategory(createCategoryDto: CreateCategoryDto, userId: number) {
+    const restaurant = await this.prismaService.restaurant.findFirst({
+      where: {
+        id: createCategoryDto.restaurantId,
+        ownerId: userId,
+      },
+      select: { id: true },
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant not found');
+    }
+
+    const category = await this.prismaService.category.create({
+      data: {
+        restaurantId: createCategoryDto.restaurantId,
+        name: createCategoryDto.name,
+        sortOrder: createCategoryDto.sortOrder,
+        dishes: {
+          create: (createCategoryDto.dishes ?? []).map((dish) => ({
+            ...dish,
+            allergens: dish.allergens ?? [],
+          })),
+        },
+      },
+      include: {
+        dishes: true,
+      },
+    });
+
+    return {
+      message: 'Category created successfully',
+      category,
+    };
+  }
+
+  async updateCategory(
+    categoryId: string,
+    updateCategoryDto: UpdateCategoryDto,
+    userId: number,
+  ) {
+    const category = await this.prismaService.category.findFirst({
+      where: {
+        id: categoryId,
+        restaurant: {
+          ownerId: userId,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+
+    const updatedCategory = await this.prismaService.category.update({
+      where: { id: categoryId },
+      data: updateCategoryDto,
+    });
+
+    return {
+      message: 'Category updated successfully',
+      category: updatedCategory,
+    };
+  }
+
+  async deleteCategory(categoryId: string, userId: number) {
+    const category = await this.prismaService.category.findFirst({
+      where: {
+        id: categoryId,
+        restaurant: {
+          ownerId: userId,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+
+    await this.prismaService.category.delete({
+      where: { id: categoryId },
+    });
+
+    return {
+      message: 'Category deleted successfully',
+    };
+  }
+}

@@ -26,7 +26,14 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @ApiOperation({ summary: 'Request one-time login code' })
-  @ApiBody({ type: RequestLoginCodeDto })
+  @ApiBody({
+    type: RequestLoginCodeDto,
+    schema: {
+      example: {
+        email: 'user@example.com',
+      },
+    },
+  })
   @ApiResponse({
     status: 201,
     description: 'Login code sent to email',
@@ -42,7 +49,15 @@ export class UsersController {
   }
 
   @ApiOperation({ summary: 'Verify one-time login code' })
-  @ApiBody({ type: VerifyLoginCodeDto })
+  @ApiBody({
+    type: VerifyLoginCodeDto,
+    schema: {
+      example: {
+        email: 'user@example.com',
+        code: '123456',
+      },
+    },
+  })
   @ApiResponse({
     status: 201,
     description: 'Code verified successfully',
@@ -51,7 +66,6 @@ export class UsersController {
         message: 'Login for user@example.com successful',
         session: {
           token: '8c3e1b06-4690-4a0b-9f4a-5c0d6a321f80',
-          expiresAt: '2026-06-15T13:40:00.000Z',
         },
       },
     },
@@ -81,7 +95,14 @@ export class UsersController {
   }
 
   @ApiOperation({ summary: 'Logout' })
-  @ApiBody({ type: LogoutDto })
+  @ApiBody({
+    type: LogoutDto,
+    schema: {
+      example: {
+        token: '8c3e1b06-4690-4a0b-9f4a-5c0d6a321f80',
+      },
+    },
+  })
   @ApiResponse({
     status: 200,
     description: 'Logout successful',
@@ -111,7 +132,11 @@ export class UsersController {
           lastName: 'Doe',
           photo: 'https://example.com/photo.jpg',
           role: 'OWNER',
-          createdAt: '2026-05-17T10:00:00.000Z',
+          restaurants: [
+            {
+              name: 'Pizza House',
+            },
+          ],
         },
       },
     },
