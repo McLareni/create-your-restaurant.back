@@ -7,15 +7,15 @@ datasource db {
 }
 
 model User {
-  id                 Int       @id @default(autoincrement())
-  email              String    @unique
+  id                 Int          @id @default(autoincrement())
+  email              String       @unique
   firstName          String?
   lastName           String?
   photo              String?
   role               EnumRole
   loginCodeHash      String?
   loginCodeExpiresAt DateTime?
-  createdAt          DateTime  @default(now())
+  createdAt          DateTime     @default(now())
   sessions           Session[]
   restaurants        Restaurant[]
 }
@@ -38,16 +38,17 @@ model Session {
 }
 
 model Restaurant {
-  id          Int               @id @default(autoincrement())
+  id          Int                @id @default(autoincrement())
   title       String
-  slug        String            @unique
+  slug        String             @unique
   type        EnumTypeRestaurant
   currency    EnumCurrency
   phoneNumber String?
   city        String?
   language    EnumLanguage
   ownerId     Int
-  owner       User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner       User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  categories   Category[]
 }
 
 enum EnumLanguage {
@@ -84,8 +85,52 @@ enum EnumTypeRestaurant {
 }
 
 model Image {
-  id          String            @id @default(uuid())
-  url         String
-  createdAt   DateTime          @default(now())
+  id        String   @id @default(uuid())
+  url       String
+  createdAt DateTime @default(now())
+  imageDishes ImageDish[]
 }
 
+model ImageDish {
+  id      String @id @default(uuid())
+  dishId  String
+  dish    Dish   @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  imageId String
+  image   Image  @relation(fields: [imageId], references: [id], onDelete: Cascade)
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  restaurantId Int
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name        String
+  dishes      Dish[]
+  sortOrder   Int      @default(0)
+}
+
+model Dish {
+  id            String      @id @default(uuid())
+  categoryId    String
+  category      Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  price         Float
+  weight        Float?
+  cookingTime   Int?
+  calories      Int?
+  isVegan       Boolean     @default(false)
+  isSpicy       Boolean     @default(false)
+  isLactoseFree Boolean     @default(false)
+  badge         BadgeType   @default(NONE)
+  images        ImageDish[]
+  allergens     String[]
+  isAvailable   Boolean     @default(true)
+}
+
+enum BadgeType {
+  NONE
+  NEW
+  HIT
+  CHEF_CHOICE
+  TOP_RATED
+}

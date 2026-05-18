@@ -34,6 +34,7 @@ export class RestaurantsController {
           phoneNumber: '+380991112233',
           city: 'Kyiv',
           language: 'UA',
+          ownerId: 1,
         },
       },
     },

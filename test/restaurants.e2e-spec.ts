@@ -92,7 +92,7 @@ describe('RestaurantsController (e2e)', () => {
     await request(app.getHttpServer())
       .post('/restaurants/check-restaurant-slug')
       .send({ slug: 'pizza-house' })
-      .expect(201)
+      .expect(200)
       .expect({ isAvailable: true });
 
     expect(restaurantsServiceMock.checkSlug).toHaveBeenCalledWith(
