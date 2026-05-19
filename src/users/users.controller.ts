@@ -134,6 +134,7 @@ export class UsersController {
           role: 'OWNER',
           restaurants: [
             {
+              id: 1,
               name: 'Pizza House',
             },
           ],

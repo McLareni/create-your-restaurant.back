@@ -38,17 +38,19 @@ model Session {
 }
 
 model Restaurant {
-  id          Int                @id @default(autoincrement())
-  title       String
-  slug        String             @unique
-  type        EnumTypeRestaurant
-  currency    EnumCurrency
-  phoneNumber String?
-  city        String?
-  language    EnumLanguage
-  ownerId     Int
-  owner       User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  categories   Category[]
+  id             Int                @id @default(autoincrement())
+  title          String
+  slug           String             @unique
+  type           EnumTypeRestaurant
+  currency       EnumCurrency
+  phoneNumber    String?
+  city           String?
+  language       EnumLanguage
+  ownerId        Int
+  owner          User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  categories     Category[]
+  staff          Staff[]
+  modifierGroups ModifierGroup[]
 }
 
 enum EnumLanguage {
@@ -85,9 +87,9 @@ enum EnumTypeRestaurant {
 }
 
 model Image {
-  id        String   @id @default(uuid())
-  url       String
-  createdAt DateTime @default(now())
+  id          String      @id @default(uuid())
+  url         String
+  createdAt   DateTime    @default(now())
   imageDishes ImageDish[]
 }
 
@@ -100,31 +102,32 @@ model ImageDish {
 }
 
 model Category {
-  id          String   @id @default(uuid())
+  id           String     @id @default(uuid())
   restaurantId Int
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  name        String
-  dishes      Dish[]
-  sortOrder   Int      @default(0)
+  name         String
+  dishes       Dish[]
+  sortOrder    Int        @default(0)
 }
 
 model Dish {
-  id            String      @id @default(uuid())
+  id            String         @id @default(uuid())
   categoryId    String
-  category      Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category      Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   name          String
   description   String?
   price         Float
   weight        Float?
   cookingTime   Int?
   calories      Int?
-  isVegan       Boolean     @default(false)
-  isSpicy       Boolean     @default(false)
-  isLactoseFree Boolean     @default(false)
-  badge         BadgeType   @default(NONE)
+  isVegan       Boolean        @default(false)
+  isSpicy       Boolean        @default(false)
+  isLactoseFree Boolean        @default(false)
+  badge         BadgeType      @default(NONE)
   images        ImageDish[]
   allergens     String[]
-  isAvailable   Boolean     @default(true)
+  isAvailable   Boolean        @default(true)
+  modifiers     DishModifier[]
 }
 
 enum BadgeType {
@@ -133,4 +136,52 @@ enum BadgeType {
   HIT
   CHEF_CHOICE
   TOP_RATED
+}
+
+model Staff {
+  id           String     @id @default(uuid())
+  restaurantId Int
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  firstName    String
+  lastName     String?
+  email        String
+  phone        String?
+  role         String
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model ModifierGroup {
+  id            String           @id @default(uuid())
+  restaurantId  Int
+  restaurant    Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name          String
+  isRequired    Boolean          @default(false)
+  minSelections Int              @default(0)
+  maxSelections Int?
+  options       ModifierOption[]
+  dishes        DishModifier[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model ModifierOption {
+  id              String        @id @default(uuid())
+  modifierGroupId String
+  group           ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+  name            String
+  price           Float         @default(0)
+  isAvailable     Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model DishModifier {
+  dishId          String
+  dish            Dish          @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  modifierGroupId String
+  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+
+  @@id([dishId, modifierGroupId])
 }

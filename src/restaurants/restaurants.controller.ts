@@ -1,4 +1,13 @@
-import { Body, Controller, HttpCode, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  ParseIntPipe,
+  Post,
+  Req,
+} from '@nestjs/common';
 import {
   ApiBody,
   ApiCookieAuth,
@@ -67,5 +76,22 @@ export class RestaurantsController {
   @Post('check-restaurant-slug')
   checkSlug(@Body() checkSlugDto: CheckSlugDto) {
     return this.restaurantsService.checkSlug(checkSlugDto.slug);
+  }
+
+  @ApiOperation({ summary: 'Get restaurant access modules and permissions' })
+  @ApiCookieAuth('gustio_session')
+  @ApiResponse({
+    status: 200,
+    description: 'Access data fetched successfully',
+  })
+  @ApiResponse({ status: 400, description: 'Session token is required' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
+  @ApiResponse({ status: 404, description: 'Restaurant not found' })
+  @Get(':id/access')
+  async getAccess(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.restaurantsService.getAccess(id, request.user.id);
   }
 }
