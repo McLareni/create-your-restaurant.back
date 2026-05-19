@@ -4,6 +4,7 @@ import {
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SessionAuthMiddleware } from '../restaurants/middleware/session-auth.middleware';
 import { UsersModule } from '../users/users.module';
@@ -21,6 +22,7 @@ import { MenuService } from './menu.service';
     MenuService,
     CategoriesService,
     DishesService,
+    CloudinaryService,
     PrismaService,
     SessionAuthMiddleware,
   ],
