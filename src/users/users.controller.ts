@@ -6,6 +6,7 @@ import {
   HttpCode,
   Post,
   Req,
+  Res,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -14,7 +15,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { LogoutDto } from './dto/logout.dto';
 import { RequestLoginCodeDto } from './dto/request-login-code.dto';
 import { VerifyLoginCodeDto } from './dto/verify-login-code.dto';
@@ -75,16 +76,17 @@ export class UsersController {
     description: 'Invalid or expired login code',
   })
   @Post('verify-login-code')
-  verifyLoginCode(
+  async verifyLoginCode(
     @Body() verifyLoginCodeDto: VerifyLoginCodeDto,
     @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
   ) {
     const forwardedFor = request.headers['x-forwarded-for'];
     const ipAddress = Array.isArray(forwardedFor)
       ? forwardedFor[0]
       : forwardedFor?.split(',')[0]?.trim() || request.ip;
 
-    return this.usersService.verifyLoginCode(
+    const result = await this.usersService.verifyLoginCode(
       verifyLoginCodeDto.email,
       verifyLoginCodeDto.code,
       {
@@ -92,6 +94,19 @@ export class UsersController {
         ipAddress,
       },
     );
+
+    // Додана логіка встановлення куки
+    if (result && result.session && result.session.token) {
+      response.cookie('gustio_session', result.session.token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        path: '/',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+    }
+
+    return result;
   }
 
   @ApiOperation({ summary: 'Logout' })
