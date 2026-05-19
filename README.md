@@ -31,6 +31,16 @@
 $ npm install
 ```
 
+## Environment variables
+
+Add these variables to your environment before uploading dish photos:
+
+```bash
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+```
+
 ## Compile and run the project
 
 ```bash

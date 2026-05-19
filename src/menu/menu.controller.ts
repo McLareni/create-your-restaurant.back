@@ -53,6 +53,12 @@ export class MenuController {
                 badge: 'NONE',
                 allergens: ['gluten', 'lactose'],
                 isAvailable: true,
+                images: [
+                  {
+                    id: 'img_1',
+                    url: 'https://res.cloudinary.com/demo/image/upload/v1/dishes/margherita.png',
+                  },
+                ],
               },
               {
                 id: 'dish_2',
@@ -68,6 +74,7 @@ export class MenuController {
                 badge: 'NONE',
                 allergens: [],
                 isAvailable: false,
+                images: [],
               },
             ],
           },
@@ -114,6 +121,12 @@ export class MenuController {
                 badge: 'NONE',
                 allergens: ['gluten', 'lactose'],
                 isAvailable: true,
+                images: [
+                  {
+                    id: 'img_1',
+                    url: 'https://res.cloudinary.com/demo/image/upload/v1/dishes/margherita.png',
+                  },
+                ],
               },
             ],
           },

@@ -348,48 +348,75 @@ describe('MenuController (e2e)', () => {
   });
 
   it('/menu/owner/categories/:categoryId/dishes (POST) should create dish', async () => {
-    const payload = {
-      name: 'Tiramisu',
-      price: 6.5,
-      isAvailable: true,
-    };
-
     dishesServiceMock.createDish.mockResolvedValue({
       message: 'Dish created successfully',
-      dish: { id: 'dish_3', categoryId: 'cat_2', ...payload },
+      dish: {
+        id: 'dish_3',
+        categoryId: 'cat_2',
+        name: 'Tiramisu',
+        price: 6.5,
+        isAvailable: true,
+        images: [],
+      },
     });
 
     await request(app.getHttpServer())
       .post('/menu/owner/categories/cat_2/dishes')
-      .send(payload)
+      .field('name', 'Tiramisu')
+      .field('price', '6.5')
+      .field('isAvailable', 'true')
+      .field('allergens', 'lactose,gluten')
+      .attach('photo', Buffer.from('fake-image-content'), {
+        filename: 'dish.png',
+        contentType: 'image/png',
+      })
       .expect(201);
 
     expect(dishesServiceMock.createDish).toHaveBeenCalledWith(
       'cat_2',
-      payload,
+      {
+        name: 'Tiramisu',
+        price: 6.5,
+        isAvailable: true,
+        allergens: ['lactose', 'gluten'],
+      },
       1,
+      expect.objectContaining({
+        originalname: 'dish.png',
+        mimetype: 'image/png',
+      }),
     );
   });
 
   it('/menu/owner/dishes/:dishId (PATCH) should update dish', async () => {
-    const payload = {
-      isAvailable: false,
-    };
-
     dishesServiceMock.updateDish.mockResolvedValue({
       message: 'Dish updated successfully',
-      dish: { id: 'dish_1', ...payload },
+      dish: {
+        id: 'dish_1',
+        isAvailable: false,
+        images: [],
+      },
     });
 
     await request(app.getHttpServer())
       .patch('/menu/owner/dishes/dish_1')
-      .send(payload)
+      .field('isAvailable', 'false')
+      .attach('photo', Buffer.from('fake-image-content'), {
+        filename: 'updated-dish.png',
+        contentType: 'image/png',
+      })
       .expect(200);
 
     expect(dishesServiceMock.updateDish).toHaveBeenCalledWith(
       'dish_1',
-      payload,
+      {
+        isAvailable: false,
+      },
       1,
+      expect.objectContaining({
+        originalname: 'updated-dish.png',
+        mimetype: 'image/png',
+      }),
     );
   });
 
