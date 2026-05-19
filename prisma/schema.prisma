@@ -50,7 +50,26 @@ model Restaurant {
   owner          User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   categories     Category[]
   staff          Staff[]
+  tables         DiningTable[]
   modifierGroups ModifierGroup[]
+}
+
+enum TableStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model DiningTable {
+  id           String      @id @default(uuid())
+  restaurantId Int
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  number       Int
+  status       TableStatus @default(ACTIVE)
+  type         String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([restaurantId, number])
 }
 
 enum EnumLanguage {

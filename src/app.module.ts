@@ -8,6 +8,7 @@ import { RestaurantsModule } from './restaurants/restaurants.module';
 import { UsersModule } from './users/users.module';
 import { StaffModule } from './staff/staff.module';
 import { ModifiersModule } from './modifiers/modifiers.module';
+import { TablesModule } from './tables/tables.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ModifiersModule } from './modifiers/modifiers.module';
     UsersModule,
     StaffModule,
     ModifiersModule,
+    TablesModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
