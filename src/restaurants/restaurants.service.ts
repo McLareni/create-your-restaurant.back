@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 
@@ -47,5 +47,25 @@ export class RestaurantsService {
       where: { slug },
     });
     return { isAvailable: !existingRestaurant };
+  }
+
+  async getAccess(restaurantId: number, userId: number) {
+    const restaurant = await this.prismaService.restaurant.findFirst({
+      where: {
+        id: restaurantId,
+        ownerId: userId,
+      },
+      select: { id: true },
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant not found');
+    }
+
+    return {
+      purchasedModules: ['menu-engine', 'qr-tables', 'staff'],
+      activeModules: ['menu-engine', 'qr-tables', 'staff'],
+      permissions: ['menu:read', 'menu:edit', 'staff:view'],
+    };
   }
 }
