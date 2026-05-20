@@ -1,89 +1,102 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsBoolean,
-  IsIn,
-  IsInt,
-  IsNumber,
-  IsOptional,
-  IsString,
-  MaxLength,
-  Min,
-} from 'class-validator';
+import { IsString, IsNumber, IsBoolean, IsOptional, IsArray, ValidateNested, Min, Max } from 'class-validator';
+import { Type } from 'class-transformer';
 
-const DISH_BADGE_TYPES = [
-  'NONE',
-  'NEW',
-  'HIT',
-  'CHEF_CHOICE',
-  'TOP_RATED',
-] as const;
+class DishVariantDto {
+  @IsString()
+  @IsOptional()
+  id?: string;
 
-type DishBadgeType = (typeof DISH_BADGE_TYPES)[number];
+  @IsString()
+  name: string;
+
+  @IsNumber()
+  @Min(0)
+  price: number;
+
+  @IsString()
+  @IsOptional()
+  sku?: string;
+}
+
+class IngredientItemDto {
+  @IsString()
+  name: string;
+
+  @IsNumber()
+  @Min(0)
+  quantity: number;
+
+  @IsString()
+  unit: string;
+}
 
 export class CreateDishDto {
-  @ApiProperty({ example: 'Margherita' })
   @IsString()
-  @MaxLength(120)
-  name!: string;
+  name: string;
 
-  @ApiPropertyOptional({ example: 'Tomato sauce, mozzarella, basil' })
-  @IsOptional()
   @IsString()
-  @MaxLength(500)
+  @IsOptional()
   description?: string;
 
-  @ApiProperty({ example: 12.5 })
   @IsNumber()
   @Min(0)
-  price!: number;
+  price: number;
 
-  @ApiPropertyOptional({ example: 320 })
-  @IsOptional()
   @IsNumber()
+  @IsOptional()
   @Min(0)
-  weight?: number;
+  @Max(100)
+  taxRate?: number;
 
-  @ApiPropertyOptional({ example: 15 })
+  @IsString()
   @IsOptional()
-  @IsInt()
-  @Min(0)
-  cookingTime?: number;
+  weight?: string;
 
-  @ApiPropertyOptional({ example: 780 })
+  @IsString()
   @IsOptional()
-  @IsInt()
-  @Min(0)
-  calories?: number;
+  cookingTime?: string;
 
-  @ApiPropertyOptional({ example: false })
+  @IsString()
   @IsOptional()
-  @IsBoolean()
-  isVegan?: boolean;
+  calories?: string;
 
-  @ApiPropertyOptional({ example: false })
+  @IsString()
   @IsOptional()
-  @IsBoolean()
-  isSpicy?: boolean;
+  badge?: string;
 
-  @ApiPropertyOptional({ example: false })
-  @IsOptional()
-  @IsBoolean()
-  isLactoseFree?: boolean;
-
-  @ApiPropertyOptional({ enum: DISH_BADGE_TYPES, example: 'NONE' })
-  @IsOptional()
-  @IsIn(DISH_BADGE_TYPES)
-  badge?: DishBadgeType;
-
-  @ApiPropertyOptional({ type: [String], example: ['gluten', 'lactose'] })
-  @IsOptional()
   @IsArray()
   @IsString({ each: true })
+  @IsOptional()
   allergens?: string[];
 
-  @ApiPropertyOptional({ example: true })
+  @IsArray()
+  @IsString({ each: true })
   @IsOptional()
+  tags?: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  modifierIds?: string[];
+
   @IsBoolean()
+  @IsOptional()
   isAvailable?: boolean;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DishVariantDto)
+  @IsOptional()
+  variants?: DishVariantDto[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => IngredientItemDto)
+  @IsOptional()
+  ingredients?: IngredientItemDto[];
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  upsellDishIds?: string[];
 }

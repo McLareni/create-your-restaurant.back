@@ -15,14 +15,13 @@ export class MenuService {
       select: {
         id: true,
         categories: {
-          orderBy: {
-            sortOrder: 'asc',
-          },
+          orderBy: { sortOrder: 'asc' },
           select: {
             id: true,
             name: true,
             sortOrder: true,
             dishes: {
+              orderBy: { sortOrder: 'asc' },
               select: {
                 id: true,
                 name: true,
@@ -31,12 +30,19 @@ export class MenuService {
                 weight: true,
                 cookingTime: true,
                 calories: true,
-                isVegan: true,
-                isSpicy: true,
-                isLactoseFree: true,
                 badge: true,
                 allergens: true,
+                tags: true,
+                upsellDishIds: true,
+                taxRate: true,
                 isAvailable: true,
+                ingredients: {
+                  select: {
+                    name: true,
+                    quantity: true,
+                    unit: true,
+                  },
+                },
               },
             },
           },
@@ -56,30 +62,23 @@ export class MenuService {
 
   async getMenu(restaurantId: number) {
     const restaurant = await this.prismaService.restaurant.findUnique({
-      where: {
-        id: restaurantId,
-      },
+      where: { id: restaurantId },
       select: {
         id: true,
         categories: {
           where: {
             dishes: {
-              some: {
-                isAvailable: true,
-              },
+              some: { isAvailable: true },
             },
           },
-          orderBy: {
-            sortOrder: 'asc',
-          },
+          orderBy: { sortOrder: 'asc' },
           select: {
             id: true,
             name: true,
             sortOrder: true,
             dishes: {
-              where: {
-                isAvailable: true,
-              },
+              where: { isAvailable: true },
+              orderBy: { sortOrder: 'asc' },
               select: {
                 id: true,
                 name: true,
@@ -88,12 +87,19 @@ export class MenuService {
                 weight: true,
                 cookingTime: true,
                 calories: true,
-                isVegan: true,
-                isSpicy: true,
-                isLactoseFree: true,
                 badge: true,
                 allergens: true,
+                tags: true,
+                upsellDishIds: true,
+                taxRate: true,
                 isAvailable: true,
+                ingredients: {
+                  select: {
+                    name: true,
+                    quantity: true,
+                    unit: true,
+                  },
+                },
               },
             },
           },
@@ -138,8 +144,18 @@ export class MenuService {
             sortOrder: category.sortOrder,
             dishes: {
               create: category.dishes.map((dish) => ({
-                ...dish,
+                name: dish.name,
+                description: dish.description,
+                price: dish.price,
+                weight: dish.weight,
+                cookingTime: dish.cookingTime,
+                calories: dish.calories,
+                badge: dish.badge,
+                isAvailable: dish.isAvailable ?? true,
                 allergens: dish.allergens ?? [],
+                tags: [],
+                upsellDishIds: [],
+                taxRate: 0,
               })),
             },
           },

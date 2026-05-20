@@ -26,14 +26,34 @@ export class CategoriesService {
         name: createCategoryDto.name,
         sortOrder: createCategoryDto.sortOrder,
         dishes: {
-          create: (createCategoryDto.dishes ?? []).map((dish) => ({
-            ...dish,
-            allergens: dish.allergens ?? [],
-          })),
+          create: (createCategoryDto.dishes ?? []).map((dish) => {
+            const { ingredients, ...dishData } = dish;
+            return {
+              name: dishData.name,
+              description: dishData.description,
+              price: dishData.price,
+              weight: dishData.weight,
+              cookingTime: dishData.cookingTime,
+              calories: dishData.calories,
+              badge: dishData.badge,
+              taxRate: dishData.taxRate ?? 0,
+              isAvailable: dishData.isAvailable ?? true,
+              allergens: dishData.allergens ?? [],
+              tags: dishData.tags ?? [],
+              upsellDishIds: dishData.upsellDishIds ?? [],
+              ingredients: {
+                create: ingredients ?? [],
+              },
+            };
+          }),
         },
       },
       include: {
-        dishes: true,
+        dishes: {
+          include: {
+            ingredients: true,
+          },
+        },
       },
     });
 
