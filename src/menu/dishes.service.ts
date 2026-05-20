@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateDishDto } from './dto/create-dish.dto';
 import { UpdateDishDto } from './dto/update-dish.dto';
 import { ReorderDishesDto } from './dto/reorder-dishes.dto';
+import { BadgeType } from '@prisma/client';
 
 @Injectable()
 export class DishesService {
@@ -35,29 +36,32 @@ export class DishesService {
       throw new NotFoundException('Category not found');
     }
 
-    const { ingredients, ...dishData } = createDishDto;
+    const { ingredients, variants, modifierIds, upsellDishIds, ...dishData } = createDishDto;
 
     const dish = await this.prismaService.dish.create({
       data: {
         categoryId,
         name: dishData.name,
-        description: dishData.description,
+        description: dishData.description || '',
         price: dishData.price,
-        weight: dishData.weight,
-        cookingTime: dishData.cookingTime,
-        calories: dishData.calories,
-        badge: dishData.badge,
+        weight: dishData.weight || '',
+        cookingTime: dishData.cookingTime || '',
+        calories: dishData.calories || '',
+        badge: (dishData.badge as BadgeType) || BadgeType.NONE,
         taxRate: dishData.taxRate ?? 0,
         isAvailable: dishData.isAvailable ?? true,
         allergens: dishData.allergens ?? [],
         tags: dishData.tags ?? [],
-        upsellDishIds: dishData.upsellDishIds ?? [],
         ingredients: {
           create: ingredients ?? [],
+        },
+        variants: {
+          create: variants ?? [],
         },
       },
       include: {
         ingredients: true,
+        variants: true,
       },
     });
 
@@ -82,11 +86,14 @@ export class DishesService {
       throw new NotFoundException('Dish not found');
     }
 
-    const { ingredients, categoryId, sortOrder, ...dishData } = updateDishDto;
+    const { ingredients, variants, modifierIds, upsellDishIds, categoryId, sortOrder, ...dishData } = updateDishDto;
 
     const updatedDish = await this.prismaService.$transaction(async (tx) => {
       if (ingredients) {
         await tx.dishIngredient.deleteMany({ where: { dishId } });
+      }
+      if (variants) {
+        await tx.dishVariant.deleteMany({ where: { dishId } });
       }
 
       return tx.dish.update({
@@ -98,12 +105,11 @@ export class DishesService {
           weight: dishData.weight,
           cookingTime: dishData.cookingTime,
           calories: dishData.calories,
-          badge: dishData.badge,
+          badge: dishData.badge ? (dishData.badge as BadgeType) : undefined,
           taxRate: dishData.taxRate,
           isAvailable: dishData.isAvailable,
           allergens: dishData.allergens,
           tags: dishData.tags,
-          upsellDishIds: dishData.upsellDishIds,
           ...(categoryId && { categoryId }),
           ...(sortOrder !== undefined && { sortOrder }),
           ...(ingredients && {
@@ -111,12 +117,18 @@ export class DishesService {
               create: ingredients,
             },
           }),
-        },
-        include: {
-          ingredients: true,
-        },
-      });
-    });
+          ...(variants && {
+            variants: {
+              create: variants,
+                },
+              }),
+            },
+            include: {
+              ingredients: true,
+              variants: true,
+            },
+          });
+        });
 
     return {
       message: 'Dish updated successfully',

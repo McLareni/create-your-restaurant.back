@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { BadgeType } from '@prisma/client';
 
 @Injectable()
 export class CategoriesService {
@@ -24,25 +25,27 @@ export class CategoriesService {
       data: {
         restaurantId: createCategoryDto.restaurantId,
         name: createCategoryDto.name,
-        sortOrder: createCategoryDto.sortOrder,
+        sortOrder: createCategoryDto.sortOrder ?? 0,
         dishes: {
           create: (createCategoryDto.dishes ?? []).map((dish) => {
-            const { ingredients, ...dishData } = dish;
+            const { ingredients, variants, modifierIds, upsellDishIds, ...dishData } = dish;
             return {
               name: dishData.name,
-              description: dishData.description,
+              description: dishData.description || '',
               price: dishData.price,
-              weight: dishData.weight,
-              cookingTime: dishData.cookingTime,
-              calories: dishData.calories,
-              badge: dishData.badge,
+              weight: dishData.weight || '',
+              cookingTime: dishData.cookingTime || '',
+              calories: dishData.calories || '',
+              badge: (dishData.badge as BadgeType) || BadgeType.NONE,
               taxRate: dishData.taxRate ?? 0,
               isAvailable: dishData.isAvailable ?? true,
               allergens: dishData.allergens ?? [],
               tags: dishData.tags ?? [],
-              upsellDishIds: dishData.upsellDishIds ?? [],
               ingredients: {
                 create: ingredients ?? [],
+              },
+              variants: {
+                create: variants ?? [],
               },
             };
           }),
@@ -52,6 +55,7 @@ export class CategoriesService {
         dishes: {
           include: {
             ingredients: true,
+            variants: true,
           },
         },
       },

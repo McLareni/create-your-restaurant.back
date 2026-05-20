@@ -8,14 +8,22 @@ import { DishesController } from './dishes.controller';
 import { DishesService } from './dishes.service';
 import { MenuController } from './menu.controller';
 import { MenuService } from './menu.service';
+import { MenuOwnerController } from './menu-owner.controller';
+import { MenuOwnerService } from './menu-owner.service';
 
 @Module({
   imports: [UsersModule],
-  controllers: [MenuController, CategoriesController, DishesController],
+  controllers: [
+    MenuController, 
+    CategoriesController, 
+    DishesController,
+    MenuOwnerController // Підключаємо новий контролер
+  ],
   providers: [
     MenuService,
     CategoriesService,
     DishesService,
+    MenuOwnerService, // Підключаємо новий сервіс
     PrismaService,
     SessionAuthMiddleware,
   ],
@@ -24,7 +32,7 @@ export class MenuModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(SessionAuthMiddleware).forRoutes(
       { path: 'menu', method: RequestMethod.POST },
-      { path: 'menu/owner/:restaurantId', method: RequestMethod.GET },
+      { path: 'menu/owner/:restaurantId', method: RequestMethod.GET }, // Захищаємо авторизацією новий ендпоінт
       { path: 'menu/owner/categories', method: RequestMethod.POST },
       { path: 'menu/owner/categories/:categoryId', method: RequestMethod.PATCH },
       { path: 'menu/owner/categories/:categoryId', method: RequestMethod.DELETE },

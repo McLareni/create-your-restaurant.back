@@ -7,11 +7,11 @@ class DishVariantDto {
   id?: string;
 
   @IsString()
-  name: string;
+  name!: string;
 
   @IsNumber()
   @Min(0)
-  price: number;
+  price!: number;
 
   @IsString()
   @IsOptional()
@@ -20,19 +20,19 @@ class DishVariantDto {
 
 class IngredientItemDto {
   @IsString()
-  name: string;
+  name!: string;
 
   @IsNumber()
   @Min(0)
-  quantity: number;
+  quantity!: number;
 
   @IsString()
-  unit: string;
+  unit!: string;
 }
 
 export class CreateDishDto {
   @IsString()
-  name: string;
+  name!: string;
 
   @IsString()
   @IsOptional()
@@ -40,7 +40,7 @@ export class CreateDishDto {
 
   @IsNumber()
   @Min(0)
-  price: number;
+  price!: number;
 
   @IsNumber()
   @IsOptional()

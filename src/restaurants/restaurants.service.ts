@@ -68,4 +68,26 @@ export class RestaurantsService {
       permissions: ['menu:read', 'menu:edit', 'staff:view'],
     };
   }
+
+  async delete(restaurantId: number, userId: number) {
+    const restaurant = await this.prismaService.restaurant.findFirst({
+      where: {
+        id: restaurantId,
+        ownerId: userId,
+      },
+      select: { id: true },
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant not found or access denied');
+    }
+
+    await this.prismaService.restaurant.delete({
+      where: { id: restaurantId },
+    });
+
+    return {
+      message: 'Restaurant deleted successfully',
+    };
+  }
 }
