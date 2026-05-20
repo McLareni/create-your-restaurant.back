@@ -51,6 +51,7 @@ model Restaurant {
   categories     Category[]
   staff          Staff[]
   tables         DiningTable[]
+  orders         Order[]
   modifierGroups ModifierGroup[]
 }
 
@@ -68,8 +69,68 @@ model DiningTable {
   type         String
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+  orders       Order[]
 
   @@unique([restaurantId, number])
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+  DELIVERY
+}
+
+enum OrderStatus {
+  PENDING
+  IN_PROGRESS
+  READY
+  COMPLETED
+  CANCELED
+}
+
+model Order {
+  id           String      @id @default(uuid())
+  restaurantId Int
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableId      String?
+  table        DiningTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  type         OrderType   @default(DINE_IN)
+  status       OrderStatus @default(PENDING)
+  totalAmount  Float
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  items        OrderItem[]
+
+  @@index([restaurantId, status])
+  @@index([tableId])
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dishId    String
+  dish      Dish    @relation(fields: [dishId], references: [id], onDelete: Restrict)
+  quantity  Int
+  unitPrice Float
+  modifiers OrderItemModifier[]
+
+  @@index([orderId])
+  @@index([dishId])
+}
+
+model OrderItemModifier {
+  id               String         @id @default(uuid())
+  orderItemId      String
+  orderItem        OrderItem      @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  modifierOptionId String
+  modifierOption   ModifierOption @relation(fields: [modifierOptionId], references: [id], onDelete: Restrict)
+  quantity         Int            @default(1)
+  unitPrice        Float
+
+  @@unique([orderItemId, modifierOptionId])
+  @@index([orderItemId])
+  @@index([modifierOptionId])
 }
 
 enum EnumLanguage {
@@ -147,6 +208,7 @@ model Dish {
   allergens     String[]
   isAvailable   Boolean        @default(true)
   modifiers     DishModifier[]
+  orderItems    OrderItem[]
 }
 
 enum BadgeType {
@@ -194,6 +256,7 @@ model ModifierOption {
   isAvailable     Boolean       @default(true)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  orderItemModifiers OrderItemModifier[]
 }
 
 model DishModifier {
