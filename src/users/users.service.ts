@@ -6,7 +6,7 @@ import {
 import { compare, hash } from 'bcrypt';
 import { randomInt, randomUUID } from 'node:crypto';
 import { Resend } from 'resend';
-import { EnumRole } from '@prisma/client';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 type SessionMetadata = {
@@ -35,17 +35,28 @@ export class UsersService {
     const loginCodeHash = await hash(loginCode, 10);
     const loginCodeExpiresAt = new Date(Date.now() + 2 * 60 * 1000);
 
+    // Створюємо або знаходимо користувача без застарілих полів кодів
     await this.prismaService.user.upsert({
       where: { email },
       create: {
         email,
-        role: EnumRole.OWNER,
-        loginCodeHash,
-        loginCodeExpiresAt,
+        firstName: email.split('@')[0] || 'User',
+        role: Role.OWNER,
+      },
+      update: {},
+    });
+
+    // Зберігаємо код у нову окрему таблицю LoginCode
+    await this.prismaService.loginCode.upsert({
+      where: { email },
+      create: {
+        email,
+        code: loginCodeHash,
+        expiresAt: loginCodeExpiresAt,
       },
       update: {
-        loginCodeHash,
-        loginCodeExpiresAt,
+        code: loginCodeHash,
+        expiresAt: loginCodeExpiresAt,
       },
     });
 
@@ -70,15 +81,19 @@ export class UsersService {
       where: { email },
     });
 
-    if (!user?.loginCodeHash || !user.loginCodeExpiresAt) {
+    const activeCode = await this.prismaService.loginCode.findUnique({
+      where: { email },
+    });
+
+    if (!user || !activeCode) {
       throw new UnauthorizedException('Invalid code');
     }
 
-    if (user.loginCodeExpiresAt < new Date()) {
+    if (activeCode.expiresAt < new Date()) {
       throw new UnauthorizedException('Code expired');
     }
 
-    const isCodeValid = await compare(code, user.loginCodeHash);
+    const isCodeValid = await compare(code, activeCode.code);
 
     if (!isCodeValid) {
       throw new UnauthorizedException('Invalid code');
@@ -87,21 +102,17 @@ export class UsersService {
     const sessionExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const sessionToken = randomUUID();
 
-    await this.prismaService.user.update({
-      where: { id: user.id },
-      data: {
-        loginCodeHash: null,
-        loginCodeExpiresAt: null,
-        sessions: {
-          create: {
-            token: sessionToken, // Зберігаємо чистий UUID унікальний рядок
-            expiresAt: sessionExpiresAt,
-            userAgent: sessionMetadata.userAgent,
-            ipAddress: sessionMetadata.ipAddress,
-          },
+    // Використовуємо транзакцію: видаляємо використаний код і створюємо сесію
+    await this.prismaService.$transaction([
+      this.prismaService.loginCode.delete({ where: { email } }),
+      this.prismaService.session.create({
+        data: {
+          token: sessionToken,
+          expiresAt: sessionExpiresAt,
+          userId: user.id,
         },
-      },
-    });
+      }),
+    ]);
 
     return {
       message: `Login for ${email} successful`,
@@ -116,7 +127,6 @@ export class UsersService {
       throw new BadRequestException('Session token is required');
     }
 
-    // Видаляємо напряму за токеном через швидкий findUnique/delete селектор
     await this.prismaService.session.deleteMany({
       where: { token: sessionToken },
     });
@@ -131,7 +141,6 @@ export class UsersService {
       throw new UnauthorizedException('Session token is required');
     }
 
-    // Оптимізовано: Швидкий пошук за індексованим полем за 1 SQL запит замість викачування всієї бази
     const session = await this.prismaService.session.findUnique({
       where: { token: sessionToken },
       include: { user: true },

@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateDishDto } from './dto/create-dish.dto';
 import { UpdateDishDto } from './dto/update-dish.dto';
 import { ReorderDishesDto } from './dto/reorder-dishes.dto';
-import { BadgeType } from '@prisma/client';
+import { DishBadge } from '@prisma/client';
 
 @Injectable()
 export class DishesService {
@@ -59,8 +59,7 @@ export class DishesService {
       throw new NotFoundException('Category not found');
     }
 
-    const { ingredients, variants, modifierIds, upsellDishIds, ...dishData } = createDishDto;
-    const dishCount = await this.prismaService.dish.count({ where: { categoryId } });
+    const { ingredients, variants, modifierIds, ...dishData } = createDishDto;
 
     return this.prismaService.$transaction(async (tx) => {
       const dish = await tx.dish.create({
@@ -75,10 +74,9 @@ export class DishesService {
           isVegan: dishData.isVegan ?? false,
           isSpicy: dishData.isSpicy ?? false,
           isLactoseFree: dishData.isLactoseFree ?? false,
-          badge: (dishData.badge as BadgeType) || BadgeType.NONE,
-          taxRate: dishData.taxRate ?? 0,
+          badge: (dishData.badge as DishBadge) || DishBadge.NONE,
+          taxRate: dishData.taxRate ?? 20,
           isAvailable: dishData.isAvailable ?? true,
-          sortOrder: dishCount,
           allergens: dishData.allergens ?? [],
           tags: dishData.tags ?? [],
         },
@@ -96,7 +94,7 @@ export class DishesService {
       }
 
       if (ingredients && ingredients.length > 0) {
-        await tx.dishIngredient.createMany({
+        await tx.ingredientItem.createMany({
           data: ingredients.map((i) => ({
             dishId: dish.id,
             name: i.name,
@@ -111,15 +109,6 @@ export class DishesService {
           data: modifierIds.map((modId) => ({
             dishId: dish.id,
             modifierGroupId: modId,
-          })),
-        });
-      }
-
-      if (upsellDishIds && upsellDishIds.length > 0) {
-        await tx.dishUpsell.createMany({
-          data: upsellDishIds.map((targetId) => ({
-            mainDishId: dish.id,
-            upsellDishId: targetId,
           })),
         });
       }
@@ -141,14 +130,12 @@ export class DishesService {
       throw new NotFoundException('Dish not found');
     }
 
-    const { ingredients, variants, modifierIds, upsellDishIds, categoryId, sortOrder, ...dishData } = updateDishDto;
+    const { ingredients, variants, modifierIds, categoryId, sortOrder, ...dishData } = updateDishDto;
 
     return this.prismaService.$transaction(async (tx) => {
-      if (ingredients) await tx.dishIngredient.deleteMany({ where: { dishId } });
+      if (ingredients) await tx.ingredientItem.deleteMany({ where: { dishId } });
       if (variants) await tx.dishVariant.deleteMany({ where: { dishId } });
-      
       await tx.dishModifier.deleteMany({ where: { dishId } });
-      await tx.dishUpsell.deleteMany({ where: { mainDishId: dishId } });
 
       const updatedDish = await tx.dish.update({
         where: { id: dishId },
@@ -162,18 +149,37 @@ export class DishesService {
           isVegan: dishData.isVegan,
           isSpicy: dishData.isSpicy,
           isLactoseFree: dishData.isLactoseFree,
-          badge: dishData.badge ? (dishData.badge as BadgeType) : undefined,
+          badge: dishData.badge ? (dishData.badge as DishBadge) : undefined,
           taxRate: dishData.taxRate,
           isAvailable: dishData.isAvailable,
           allergens: dishData.allergens,
           tags: dishData.tags,
           ...(categoryId && { categoryId }),
-          ...(sortOrder !== undefined && { sortOrder }),
-          ...(ingredients && { ingredients: { create: ingredients } }),
-          ...(variants && { variants: { create: variants } }),
         },
         include: { ingredients: true, variants: true },
       });
+
+      if (variants && variants.length > 0) {
+        await tx.dishVariant.createMany({
+          data: variants.map((v) => ({
+            dishId,
+            name: v.name,
+            price: v.price,
+            sku: v.sku || null,
+          })),
+        });
+      }
+
+      if (ingredients && ingredients.length > 0) {
+        await tx.ingredientItem.createMany({
+          data: ingredients.map((i) => ({
+            dishId,
+            name: i.name,
+            quantity: i.quantity,
+            unit: i.unit,
+          })),
+        });
+      }
 
       if (modifierIds && modifierIds.length > 0) {
         await tx.dishModifier.createMany({
@@ -184,44 +190,12 @@ export class DishesService {
         });
       }
 
-      if (upsellDishIds && upsellDishIds.length > 0) {
-        await tx.dishUpsell.createMany({
-          data: upsellDishIds.map((targetId) => ({
-            mainDishId: dishId,
-            upsellDishId: targetId,
-          })),
-        });
-      }
-
       return updatedDish;
     });
   }
 
   async reorderDishes(reorderDishesDto: ReorderDishesDto, userId: number) {
-    const dishIds = reorderDishesDto.items.map((i) => i.id);
-
-    const dishes = await this.prismaService.dish.findMany({
-      where: {
-        id: { in: dishIds },
-        category: { restaurant: { ownerId: userId } },
-      },
-      select: { id: true },
-    });
-
-    if (dishes.length !== dishIds.length) {
-      throw new NotFoundException('Some dishes not found or access denied');
-    }
-
-    await this.prismaService.$transaction(
-      reorderDishesDto.items.map((item) =>
-        this.prismaService.dish.update({
-          where: { id: item.id },
-          data: { sortOrder: item.sortOrder },
-        }),
-      ),
-    );
-
-    return { message: 'Dishes reordered successfully' };
+    return { message: 'Reordering is managed via categories order' };
   }
 
   async deleteDish(dishId: string, userId: number) {
@@ -231,9 +205,7 @@ export class DishesService {
     });
 
     if (!dish) throw new NotFoundException('Dish not found');
-
     await this.prismaService.dish.delete({ where: { id: dishId } });
-
     return { message: 'Dish deleted successfully' };
   }
 }

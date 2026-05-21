@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { EnumCurrency, EnumLanguage, EnumTypeRestaurant } from '@prisma/client';
+import { Currency, Language, RestaurantType } from '@prisma/client';
 import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateRestaurantDto {
@@ -14,13 +13,13 @@ export class CreateRestaurantDto {
   @MaxLength(120)
   slug!: string;
 
-  @ApiProperty({ enum: EnumTypeRestaurant, example: EnumTypeRestaurant.CAFE })
-  @IsEnum(EnumTypeRestaurant)
-  type!: EnumTypeRestaurant;
+  @ApiProperty({ enum: RestaurantType, example: RestaurantType.CAFE })
+  @IsEnum(RestaurantType)
+  type!: RestaurantType;
 
-  @ApiProperty({ enum: EnumCurrency, example: EnumCurrency.USD })
-  @IsEnum(EnumCurrency)
-  currency!: EnumCurrency;
+  @ApiProperty({ enum: Currency, example: Currency.USD })
+  @IsEnum(Currency)
+  currency!: Currency;
 
   @ApiPropertyOptional({ example: '+380991112233' })
   @IsOptional()
@@ -34,7 +33,7 @@ export class CreateRestaurantDto {
   @MaxLength(120)
   city?: string;
 
-  @ApiProperty({ enum: EnumLanguage, example: EnumLanguage.UA })
-  @IsEnum(EnumLanguage)
-  language!: EnumLanguage;
+  @ApiProperty({ enum: Language, example: Language.UA })
+  @IsEnum(Language)
+  language!: Language;
 }
