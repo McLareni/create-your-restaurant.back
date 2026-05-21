@@ -35,6 +35,16 @@ export class MenuService {
             dishes: {
               orderBy: { sortOrder: 'asc' },
               include: {
+                images: {
+                  include: {
+                    image: {
+                      select: {
+                        id: true,
+                        url: true,
+                      },
+                    },
+                  },
+                },
                 variants: true,
                 ingredients: true,
                 modifiers: true,
@@ -74,6 +84,16 @@ export class MenuService {
               where: { isAvailable: true },
               orderBy: { sortOrder: 'asc' },
               include: {
+                images: {
+                  include: {
+                    image: {
+                      select: {
+                        id: true,
+                        url: true,
+                      },
+                    },
+                  },
+                },
                 variants: true,
                 ingredients: true,
               },

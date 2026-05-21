@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { EnumCurrency, EnumLanguage, EnumTypeRestaurant } from '@prisma/client';
 import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';

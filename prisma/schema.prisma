@@ -47,6 +47,7 @@ model Restaurant {
   combos         Combo[]
   owner          User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   staff          Staff[]
+  orders         Order[]
 }
 
 model Image {
@@ -95,6 +96,7 @@ model Dish {
   modifiers     DishModifier[]
   images        ImageDish[]
   ingredients   DishIngredient[]
+  orderItems    OrderItem[]
   variants      DishVariant[]    
   comboDishes   ComboDish[]
 
@@ -193,6 +195,7 @@ model ModifierOption {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   group           ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+  orderItemModifiers OrderItemModifier[]
 }
 
 model DishModifier {
@@ -213,8 +216,54 @@ model DiningTable {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
   Restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orders       Order[]
 
   @@unique([restaurantId, number])
+}
+
+model Order {
+  id          String       @id @default(uuid())
+  restaurantId Int
+  tableId     String?
+  type        OrderType    @default(DINE_IN)
+  status      OrderStatus  @default(PENDING)
+  totalAmount Float
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  restaurant  Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table       DiningTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  items       OrderItem[]
+
+  @@index([restaurantId, status])
+  @@index([tableId])
+}
+
+model OrderItem {
+  id        String              @id @default(uuid())
+  orderId   String
+  dishId    String
+  quantity  Int
+  unitPrice Float
+  order     Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dish      Dish                @relation(fields: [dishId], references: [id], onDelete: Restrict)
+  modifiers OrderItemModifier[]
+
+  @@index([orderId])
+  @@index([dishId])
+}
+
+model OrderItemModifier {
+  id               String         @id @default(uuid())
+  orderItemId      String
+  modifierOptionId String
+  quantity         Int            @default(1)
+  unitPrice        Float
+  orderItem        OrderItem      @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  modifierOption   ModifierOption @relation(fields: [modifierOptionId], references: [id], onDelete: Restrict)
+
+  @@unique([orderItemId, modifierOptionId])
+  @@index([orderItemId])
+  @@index([modifierOptionId])
 }
 
 enum EnumRole {
@@ -267,6 +316,20 @@ enum BadgeType {
 enum TableStatus {
   ACTIVE
   INACTIVE
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+  DELIVERY
+}
+
+enum OrderStatus {
+  PENDING
+  IN_PROGRESS
+  READY
+  COMPLETED
+  CANCELED
 }
 
 enum ComboPriceType {
