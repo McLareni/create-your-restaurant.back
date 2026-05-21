@@ -17,13 +17,13 @@ import { MenuOwnerService } from './menu-owner.service';
     MenuController, 
     CategoriesController, 
     DishesController,
-    MenuOwnerController // Підключаємо новий контролер
+    MenuOwnerController 
   ],
   providers: [
     MenuService,
     CategoriesService,
     DishesService,
-    MenuOwnerService, // Підключаємо новий сервіс
+    MenuOwnerService, 
     PrismaService,
     SessionAuthMiddleware,
   ],
@@ -32,13 +32,16 @@ export class MenuModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(SessionAuthMiddleware).forRoutes(
       { path: 'menu', method: RequestMethod.POST },
-      { path: 'menu/owner/:restaurantId', method: RequestMethod.GET }, // Захищаємо авторизацією новий ендпоінт
+      { path: 'menu/owner/:restaurantId', method: RequestMethod.GET }, 
       { path: 'menu/owner/categories', method: RequestMethod.POST },
+      { path: 'menu/owner/categories/reorder', method: RequestMethod.PATCH },
       { path: 'menu/owner/categories/:categoryId', method: RequestMethod.PATCH },
       { path: 'menu/owner/categories/:categoryId', method: RequestMethod.DELETE },
       { path: 'menu/owner/categories/:categoryId/dishes', method: RequestMethod.POST },
       { path: 'menu/owner/dishes/lookups/tags', method: RequestMethod.GET },
       { path: 'menu/owner/dishes/lookups/allergens', method: RequestMethod.GET },
+      { path: 'menu/owner/dishes/lookups/tags/:tagName', method: RequestMethod.DELETE }, // Захищаємо роут видалення тегів
+      { path: 'menu/owner/dishes/lookups/allergens/:allergenName', method: RequestMethod.DELETE }, // Захищаємо роут видалення алергенів
       { path: 'menu/owner/dishes/reorder', method: RequestMethod.PATCH },
       { path: 'menu/owner/dishes/:dishId', method: RequestMethod.PATCH },
       { path: 'menu/owner/dishes/:dishId', method: RequestMethod.DELETE },

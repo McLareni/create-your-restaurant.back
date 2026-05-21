@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NestMiddleware,
+  UnauthorizedException,
 } from '@nestjs/common';
 import type { User } from '@prisma/client';
 import type { NextFunction, Request, Response } from 'express';
@@ -23,9 +24,12 @@ export class SessionAuthMiddleware implements NestMiddleware {
       throw new BadRequestException('Session token is required');
     }
 
-    const user = await this.usersService.validateSessionToken(token);
-
-    (request as AuthenticatedRequest).user = user;
-    next();
+    try {
+      const user = await this.usersService.validateSessionToken(token);
+      (request as AuthenticatedRequest).user = user;
+      next();
+    } catch (error) {
+      throw new UnauthorizedException('Invalid or expired session token');
+    }
   }
 }

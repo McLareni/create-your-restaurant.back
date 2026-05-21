@@ -48,17 +48,32 @@ export class CreateDishDto {
   @Max(100)
   taxRate?: number;
 
-  @IsString()
+  @IsNumber()
   @IsOptional()
-  weight?: string;
+  @Min(0)
+  weight?: number;
 
-  @IsString()
+  @IsNumber()
   @IsOptional()
-  cookingTime?: string;
+  @Min(0)
+  cookingTime?: number;
 
-  @IsString()
+  @IsNumber()
   @IsOptional()
-  calories?: string;
+  @Min(0)
+  calories?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  isVegan?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isSpicy?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isLactoseFree?: boolean;
 
   @IsString()
   @IsOptional()

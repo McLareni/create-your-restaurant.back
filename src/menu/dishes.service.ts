@@ -23,12 +23,35 @@ export class DishesService {
     return Array.from(new Set([...defaultAllergens, ...usedAllergens]));
   }
 
+  async deleteTagLookup(tagName: string, userId: number) {
+    await this.prismaService.$executeRaw`
+      UPDATE "Dish" 
+      SET tags = array_remove(tags, ${tagName})
+      WHERE "categoryId" IN (
+        SELECT c.id FROM "Category" c
+        JOIN "Restaurant" r ON c."restaurantId" = r.id
+        WHERE r."ownerId" = ${userId}
+      )
+    `;
+    return { message: 'Tag removed from all dishes successfully' };
+  }
+
+  async deleteAllergenLookup(allergenName: string, userId: number) {
+    await this.prismaService.$executeRaw`
+      UPDATE "Dish" 
+      SET allergens = array_remove(allergens, ${allergenName})
+      WHERE "categoryId" IN (
+        SELECT c.id FROM "Category" c
+        JOIN "Restaurant" r ON c."restaurantId" = r.id
+        WHERE r."ownerId" = ${userId}
+      )
+    `;
+    return { message: 'Allergen removed from all dishes successfully' };
+  }
+
   async createDish(categoryId: string, createDishDto: CreateDishDto, userId: number) {
     const category = await this.prismaService.category.findFirst({
-      where: {
-        id: categoryId,
-        restaurant: { ownerId: userId },
-      },
+      where: { id: categoryId, restaurant: { ownerId: userId } },
       select: { id: true },
     });
 
@@ -37,48 +60,80 @@ export class DishesService {
     }
 
     const { ingredients, variants, modifierIds, upsellDishIds, ...dishData } = createDishDto;
+    const dishCount = await this.prismaService.dish.count({ where: { categoryId } });
 
-    const dish = await this.prismaService.dish.create({
-      data: {
-        categoryId,
-        name: dishData.name,
-        description: dishData.description || '',
-        price: dishData.price,
-        weight: dishData.weight || '',
-        cookingTime: dishData.cookingTime || '',
-        calories: dishData.calories || '',
-        badge: (dishData.badge as BadgeType) || BadgeType.NONE,
-        taxRate: dishData.taxRate ?? 0,
-        isAvailable: dishData.isAvailable ?? true,
-        allergens: dishData.allergens ?? [],
-        tags: dishData.tags ?? [],
-        ingredients: {
-          create: ingredients ?? [],
+    return this.prismaService.$transaction(async (tx) => {
+      const dish = await tx.dish.create({
+        data: {
+          categoryId,
+          name: dishData.name,
+          description: dishData.description || '',
+          price: dishData.price,
+          weight: dishData.weight ?? null,
+          cookingTime: dishData.cookingTime ?? null,
+          calories: dishData.calories ?? null,
+          isVegan: dishData.isVegan ?? false,
+          isSpicy: dishData.isSpicy ?? false,
+          isLactoseFree: dishData.isLactoseFree ?? false,
+          badge: (dishData.badge as BadgeType) || BadgeType.NONE,
+          taxRate: dishData.taxRate ?? 0,
+          isAvailable: dishData.isAvailable ?? true,
+          sortOrder: dishCount,
+          allergens: dishData.allergens ?? [],
+          tags: dishData.tags ?? [],
         },
-        variants: {
-          create: variants ?? [],
-        },
-      },
-      include: {
-        ingredients: true,
-        variants: true,
-      },
+      });
+
+      if (variants && variants.length > 0) {
+        await tx.dishVariant.createMany({
+          data: variants.map((v) => ({
+            dishId: dish.id,
+            name: v.name,
+            price: v.price,
+            sku: v.sku || null,
+          })),
+        });
+      }
+
+      if (ingredients && ingredients.length > 0) {
+        await tx.dishIngredient.createMany({
+          data: ingredients.map((i) => ({
+            dishId: dish.id,
+            name: i.name,
+            quantity: i.quantity,
+            unit: i.unit,
+          })),
+        });
+      }
+
+      if (modifierIds && modifierIds.length > 0) {
+        await tx.dishModifier.createMany({
+          data: modifierIds.map((modId) => ({
+            dishId: dish.id,
+            modifierGroupId: modId,
+          })),
+        });
+      }
+
+      if (upsellDishIds && upsellDishIds.length > 0) {
+        await tx.dishUpsell.createMany({
+          data: upsellDishIds.map((targetId) => ({
+            mainDishId: dish.id,
+            upsellDishId: targetId,
+          })),
+        });
+      }
+
+      return tx.dish.findUnique({
+        where: { id: dish.id },
+        include: { variants: true, ingredients: true },
+      });
     });
-
-    return {
-      message: 'Dish created successfully',
-      dish,
-    };
   }
 
   async updateDish(dishId: string, updateDishDto: UpdateDishDto, userId: number) {
     const dish = await this.prismaService.dish.findFirst({
-      where: {
-        id: dishId,
-        category: {
-          restaurant: { ownerId: userId },
-        },
-      },
+      where: { id: dishId, category: { restaurant: { ownerId: userId } } },
       select: { id: true },
     });
 
@@ -88,23 +143,25 @@ export class DishesService {
 
     const { ingredients, variants, modifierIds, upsellDishIds, categoryId, sortOrder, ...dishData } = updateDishDto;
 
-    const updatedDish = await this.prismaService.$transaction(async (tx) => {
-      if (ingredients) {
-        await tx.dishIngredient.deleteMany({ where: { dishId } });
-      }
-      if (variants) {
-        await tx.dishVariant.deleteMany({ where: { dishId } });
-      }
+    return this.prismaService.$transaction(async (tx) => {
+      if (ingredients) await tx.dishIngredient.deleteMany({ where: { dishId } });
+      if (variants) await tx.dishVariant.deleteMany({ where: { dishId } });
+      
+      await tx.dishModifier.deleteMany({ where: { dishId } });
+      await tx.dishUpsell.deleteMany({ where: { mainDishId: dishId } });
 
-      return tx.dish.update({
+      const updatedDish = await tx.dish.update({
         where: { id: dishId },
         data: {
           name: dishData.name,
           description: dishData.description,
           price: dishData.price,
-          weight: dishData.weight,
-          cookingTime: dishData.cookingTime,
-          calories: dishData.calories,
+          weight: dishData.weight ?? null,
+          cookingTime: dishData.cookingTime ?? null,
+          calories: dishData.calories ?? null,
+          isVegan: dishData.isVegan,
+          isSpicy: dishData.isSpicy,
+          isLactoseFree: dishData.isLactoseFree,
           badge: dishData.badge ? (dishData.badge as BadgeType) : undefined,
           taxRate: dishData.taxRate,
           isAvailable: dishData.isAvailable,
@@ -112,28 +169,32 @@ export class DishesService {
           tags: dishData.tags,
           ...(categoryId && { categoryId }),
           ...(sortOrder !== undefined && { sortOrder }),
-          ...(ingredients && {
-            ingredients: {
-              create: ingredients,
-            },
-          }),
-          ...(variants && {
-            variants: {
-              create: variants,
-                },
-              }),
-            },
-            include: {
-              ingredients: true,
-              variants: true,
-            },
-          });
-        });
+          ...(ingredients && { ingredients: { create: ingredients } }),
+          ...(variants && { variants: { create: variants } }),
+        },
+        include: { ingredients: true, variants: true },
+      });
 
-    return {
-      message: 'Dish updated successfully',
-      dish: updatedDish,
-    };
+      if (modifierIds && modifierIds.length > 0) {
+        await tx.dishModifier.createMany({
+          data: modifierIds.map((modId) => ({
+            dishId,
+            modifierGroupId: modId,
+          })),
+        });
+      }
+
+      if (upsellDishIds && upsellDishIds.length > 0) {
+        await tx.dishUpsell.createMany({
+          data: upsellDishIds.map((targetId) => ({
+            mainDishId: dishId,
+            upsellDishId: targetId,
+          })),
+        });
+      }
+
+      return updatedDish;
+    });
   }
 
   async reorderDishes(reorderDishesDto: ReorderDishesDto, userId: number) {
@@ -142,9 +203,7 @@ export class DishesService {
     const dishes = await this.prismaService.dish.findMany({
       where: {
         id: { in: dishIds },
-        category: {
-          restaurant: { ownerId: userId },
-        },
+        category: { restaurant: { ownerId: userId } },
       },
       select: { id: true },
     });
@@ -162,32 +221,19 @@ export class DishesService {
       ),
     );
 
-    return {
-      message: 'Dishes reordered successfully',
-    };
+    return { message: 'Dishes reordered successfully' };
   }
 
   async deleteDish(dishId: string, userId: number) {
     const dish = await this.prismaService.dish.findFirst({
-      where: {
-        id: dishId,
-        category: {
-          restaurant: { ownerId: userId },
-        },
-      },
+      where: { id: dishId, category: { restaurant: { ownerId: userId } } },
       select: { id: true },
     });
 
-    if (!dish) {
-      throw new NotFoundException('Dish not found');
-    }
+    if (!dish) throw new NotFoundException('Dish not found');
 
-    await this.prismaService.dish.delete({
-      where: { id: dishId },
-    });
+    await this.prismaService.dish.delete({ where: { id: dishId } });
 
-    return {
-      message: 'Dish deleted successfully',
-    };
+    return { message: 'Dish deleted successfully' };
   }
 }

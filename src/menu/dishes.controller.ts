@@ -25,6 +25,28 @@ export class DishesController {
     return this.dishesService.getAllergensLookup();
   }
 
+  @ApiOperation({ summary: 'Delete custom tag from all dishes' })
+  @ApiCookieAuth('gustio_session')
+  @ApiParam({ name: 'tagName', type: String, example: 'Веган' })
+  @Delete('dishes/lookups/tags/:tagName')
+  deleteTagLookup(
+    @Param('tagName') tagName: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.dishesService.deleteTagLookup(tagName, request.user.id);
+  }
+
+  @ApiOperation({ summary: 'Delete custom allergen from all dishes' })
+  @ApiCookieAuth('gustio_session')
+  @ApiParam({ name: 'allergenName', type: String, example: 'Глютен' })
+  @Delete('dishes/lookups/allergens/:allergenName')
+  deleteAllergenLookup(
+    @Param('allergenName') allergenName: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.dishesService.deleteAllergenLookup(allergenName, request.user.id);
+  }
+
   @ApiOperation({ summary: 'Create dish for owner' })
   @ApiCookieAuth('gustio_session')
   @ApiParam({ name: 'categoryId', type: String, example: 'cat_1' })

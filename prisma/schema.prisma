@@ -44,6 +44,7 @@ model Restaurant {
   categories     Category[]
   DiningTable    DiningTable[]
   modifierGroups ModifierGroup[]
+  combos         Combo[]
   owner          User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   staff          Staff[]
 }
@@ -78,9 +79,12 @@ model Dish {
   name          String
   description   String?
   price         Float
-  weight        String?          // Змінено на String? для гнучкості відображення та введення тексту
-  cookingTime   String?          // Змінено на String?
-  calories      String?          // Змінено на String?
+  weight        Float?           
+  cookingTime   Int?             
+  calories      Int?             
+  isVegan       Boolean          @default(false)
+  isSpicy       Boolean          @default(false)
+  isLactoseFree Boolean          @default(false)
   badge         BadgeType        @default(NONE)
   allergens     String[]
   tags          String[]
@@ -91,9 +95,9 @@ model Dish {
   modifiers     DishModifier[]
   images        ImageDish[]
   ingredients   DishIngredient[]
-  variants      DishVariant[]    // Нове відношення One-to-Many для варіантів / порцій
+  variants      DishVariant[]    
+  comboDishes   ComboDish[]
 
-  // Безпечна реалізація явного зв'язку Many-to-Many для рекомендацій (Upsell)
   upsellTo      DishUpsell[]     @relation("MainDishRelation")
   upselledBy    DishUpsell[]     @relation("UpsellDishRelation")
 
@@ -128,6 +132,28 @@ model DishUpsell {
   upsellDish   Dish   @relation("UpsellDishRelation", fields: [upsellDishId], references: [id], onDelete: Cascade)
 
   @@id([mainDishId, upsellDishId])
+}
+
+model Combo {
+  id           String         @id @default(uuid())
+  restaurantId Int
+  name         String
+  priceType    ComboPriceType
+  priceValue   Float
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  restaurant   Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  dishes       ComboDish[]
+}
+
+model ComboDish {
+  id      String @id @default(uuid())
+  comboId String
+  dishId  String
+  name    String
+  price   Float
+  combo   Combo  @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  dish    Dish   @relation(fields: [dishId], references: [id], onDelete: Cascade)
 }
 
 model Staff {
@@ -241,4 +267,9 @@ enum BadgeType {
 enum TableStatus {
   ACTIVE
   INACTIVE
+}
+
+enum ComboPriceType {
+  FIXED
+  DISCOUNT
 }
