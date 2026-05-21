@@ -1,37 +1,10 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Param,
-  Patch,
-  Post,
-  Req,
-  Get,
-  UploadedFile,
-  UseInterceptors,
-} from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import {
-  ApiBody,
-  ApiConsumes,
-  ApiCookieAuth,
-  ApiOperation,
-  ApiParam,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { Body, Controller, Delete, Param, Patch, Post, Req, Get } from '@nestjs/common';
+import { ApiBody, ApiCookieAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
 import { CreateDishDto } from './dto/create-dish.dto';
 import { UpdateDishDto } from './dto/update-dish.dto';
 import { ReorderDishesDto } from './dto/reorder-dishes.dto';
 import { DishesService } from './dishes.service';
-
-type UploadedDishImage = {
-  buffer: Buffer;
-  mimetype: string;
-  originalname: string;
-  size: number;
-};
 
 @ApiTags('Dishes')
 @Controller('menu/owner')
@@ -71,38 +44,22 @@ export class DishesController {
     @Param('allergenName') allergenName: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.dishesService.deleteAllergenLookup(
-      allergenName,
-      request.user.id,
-    );
+    return this.dishesService.deleteAllergenLookup(allergenName, request.user.id);
   }
 
   @ApiOperation({ summary: 'Create dish for owner' })
   @ApiCookieAuth('gustio_session')
-  @ApiConsumes('multipart/form-data')
   @ApiParam({ name: 'categoryId', type: String, example: 'cat_1' })
   @ApiBody({ type: CreateDishDto })
   @ApiResponse({ status: 201, description: 'Dish created successfully' })
   @Post('categories/:categoryId/dishes')
-  @UseInterceptors(
-    FileInterceptor('photo', {
-      limits: {
-        fileSize: 5 * 1024 * 1024,
-      },
-    }),
-  )
   createDish(
     @Param('categoryId') categoryId: string,
     @Body() createDishDto: CreateDishDto,
     @Req() request: AuthenticatedRequest,
-    @UploadedFile() file?: UploadedDishImage,
   ) {
-    return this.dishesService.createDish(
-      categoryId,
-      createDishDto,
-      request.user.id,
-      file,
-    );
+    // ВИПРАВЛЕНО: Сервіс викликається з 3 правильними аргументами
+    return this.dishesService.createDish(categoryId, createDishDto, request.user.id);
   }
 
   @ApiOperation({ summary: 'Reorder dishes for owner' })
@@ -119,30 +76,17 @@ export class DishesController {
 
   @ApiOperation({ summary: 'Update dish for owner' })
   @ApiCookieAuth('gustio_session')
-  @ApiConsumes('multipart/form-data')
   @ApiParam({ name: 'dishId', type: String, example: 'dish_1' })
   @ApiBody({ type: UpdateDishDto })
   @ApiResponse({ status: 200, description: 'Dish updated successfully' })
   @Patch('dishes/:dishId')
-  @UseInterceptors(
-    FileInterceptor('photo', {
-      limits: {
-        fileSize: 5 * 1024 * 1024,
-      },
-    }),
-  )
   updateDish(
     @Param('dishId') dishId: string,
     @Body() updateDishDto: UpdateDishDto,
     @Req() request: AuthenticatedRequest,
-    @UploadedFile() file?: UploadedDishImage,
   ) {
-    return this.dishesService.updateDish(
-      dishId,
-      updateDishDto,
-      request.user.id,
-      file,
-    );
+    // ВИПРАВЛЕНО: Сервіс викликається з 3 правильними аргументами
+    return this.dishesService.updateDish(dishId, updateDishDto, request.user.id);
   }
 
   @ApiOperation({ summary: 'Delete dish for owner' })
