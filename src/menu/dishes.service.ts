@@ -1,13 +1,55 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDishDto } from './dto/create-dish.dto';
 import { UpdateDishDto } from './dto/update-dish.dto';
 import { ReorderDishesDto } from './dto/reorder-dishes.dto';
 import { BadgeType } from '@prisma/client';
 
+type UploadedDishImage = {
+  buffer: Buffer;
+  mimetype: string;
+  originalname: string;
+  size: number;
+};
+
+const dishWithImagesSelect = {
+  id: true,
+  categoryId: true,
+  name: true,
+  description: true,
+  price: true,
+  weight: true,
+  cookingTime: true,
+  calories: true,
+  isVegan: true,
+  isSpicy: true,
+  isLactoseFree: true,
+  badge: true,
+  allergens: true,
+  isAvailable: true,
+  images: {
+    select: {
+      image: {
+        select: {
+          id: true,
+          url: true,
+        },
+      },
+    },
+  },
+} as const;
+
 @Injectable()
 export class DishesService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   async getTagsLookup() {
     const defaultTags = ['Веган', 'Гостро', 'Без лактози', 'Біо', 'Фітнес', 'Шеф-рецепт'];
@@ -131,7 +173,12 @@ export class DishesService {
     });
   }
 
-  async updateDish(dishId: string, updateDishDto: UpdateDishDto, userId: number) {
+  async updateDish(
+    dishId: string,
+    updateDishDto: UpdateDishDto,
+    userId: number,
+    file?: UploadedDishImage,
+  ) {
     const dish = await this.prismaService.dish.findFirst({
       where: { id: dishId, category: { restaurant: { ownerId: userId } } },
       select: { id: true },

@@ -6,6 +6,22 @@ import { CreateMenuDto } from './dto/create-menu.dto';
 export class MenuService {
   constructor(private readonly prismaService: PrismaService) {}
 
+  private mapDishImages(
+    dish: {
+      images: Array<{
+        image: {
+          id: string;
+          url: string;
+        };
+      }>;
+    } & Record<string, unknown>,
+  ) {
+    return {
+      ...dish,
+      images: dish.images.map(({ image }) => image),
+    };
+  }
+
   async getMenuForOwner(restaurantId: number, userId: number) {
     const restaurant = await this.prismaService.restaurant.findFirst({
       where: {
@@ -35,7 +51,10 @@ export class MenuService {
 
     return {
       restaurantId: restaurant.id,
-      categories: restaurant.categories,
+      categories: restaurant.categories.map((category) => ({
+        ...category,
+        dishes: category.dishes.map((dish) => this.mapDishImages(dish)),
+      })),
     };
   }
 
@@ -70,7 +89,10 @@ export class MenuService {
 
     return {
       restaurantId: restaurant.id,
-      categories: restaurant.categories,
+      categories: restaurant.categories.map((category) => ({
+        ...category,
+        dishes: category.dishes.map((dish) => this.mapDishImages(dish)),
+      })),
     };
   }
 
