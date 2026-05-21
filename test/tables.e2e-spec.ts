@@ -226,9 +226,10 @@ describe('TablesController (e2e)', () => {
       ]),
     );
     expect(tablesCollectionPath.post!.requestBody).toBeDefined();
-    expect(
-      tablesCollectionPath.post!.requestBody!.content['application/json'],
-    ).toBeDefined();
+    const postRequestBody = tablesCollectionPath.post!.requestBody as {
+      content?: Record<string, unknown>;
+    };
+    expect(postRequestBody.content?.['application/json']).toBeDefined();
     expect(Object.keys(tablesCollectionPath.post!.responses)).toEqual(
       expect.arrayContaining(['201', '400', '401', '404', '409']),
     );

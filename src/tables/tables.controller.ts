@@ -1,14 +1,32 @@
-import { Body, Controller, Delete, Param, Patch, Post, Get, Req, ParseIntPipe } from '@nestjs/common';
-import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Param,
+  Patch,
+  Post,
+  Get,
+  Req,
+  ParseIntPipe,
+} from '@nestjs/common';
+import {
+  ApiCookieAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { TablesService } from './tables.service';
 import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
+import { CreateTableDto } from './dto/create-table.dto';
+import { UpdateTableDto } from './dto/update-table.dto';
 
 @ApiTags('Tables')
 @Controller('restaurants/:restaurantId/tables')
 export class TablesController {
   constructor(private readonly tablesService: TablesService) {}
 
-  @ApiOperation({ summary: 'Get all tables for a restaurant' })
+  @ApiOperation({ summary: 'Get all restaurant tables' })
   @ApiCookieAuth('gustio_session')
   @Get()
   getAll(
@@ -18,15 +36,15 @@ export class TablesController {
     return this.tablesService.getAll(restaurantId, request.user.id);
   }
 
-  @ApiOperation({ summary: 'Create a table' })
+  @ApiOperation({ summary: 'Create table' })
   @ApiCookieAuth('gustio_session')
   @Post()
   create(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Body() dto: any,
+    @Body() dto: CreateTableDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.tablesService.create(restaurantId, dto, request.user.id);
+    return this.tablesService.createTable(restaurantId, dto, request.user.id);
   }
 
   @ApiOperation({
@@ -63,24 +81,33 @@ export class TablesController {
 
   @ApiOperation({ summary: 'Update table' })
   @ApiCookieAuth('gustio_session')
-  @Patch(':id')
+  @Patch(':tableId')
   update(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Param('id') id: string,
-    @Body() dto: any,
+    @Param('tableId') tableId: string,
+    @Body() dto: UpdateTableDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.tablesService.update(restaurantId, id, dto, request.user.id);
+    return this.tablesService.updateTable(
+      restaurantId,
+      tableId,
+      dto,
+      request.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Delete a table' })
   @ApiCookieAuth('gustio_session')
-  @Delete(':id')
+  @Delete(':tableId')
   delete(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Param('id') id: string,
+    @Param('tableId') tableId: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.tablesService.delete(restaurantId, id, request.user.id);
+    return this.tablesService.deleteTable(
+      restaurantId,
+      tableId,
+      request.user.id,
+    );
   }
 }
