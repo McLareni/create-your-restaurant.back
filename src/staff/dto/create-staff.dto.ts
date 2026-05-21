@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsEmail, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateStaffDto {
   @ApiProperty({ example: 'John' })
@@ -37,5 +44,6 @@ export class CreateStaffDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   photo?: string;
 }

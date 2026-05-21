@@ -1,5 +1,22 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Req } from '@nestjs/common';
-import { ApiBody, ApiCookieAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Req,
+} from '@nestjs/common';
+import {
+  ApiBody,
+  ApiCookieAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
@@ -24,7 +41,11 @@ export class StaffController {
     @Body() createStaffDto: CreateStaffDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.staffService.createStaff(restaurantId, createStaffDto, request.user.id);
+    return this.staffService.createStaff(
+      restaurantId,
+      createStaffDto,
+      request.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Get all staff members for restaurant' })
@@ -58,7 +79,12 @@ export class StaffController {
     @Body() updateStaffDto: UpdateStaffDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.staffService.updateStaff(restaurantId, staffId, updateStaffDto, request.user.id);
+    return this.staffService.updateStaff(
+      restaurantId,
+      staffId,
+      updateStaffDto,
+      request.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Delete staff member' })
@@ -75,6 +101,10 @@ export class StaffController {
     @Param('staffId') staffId: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.staffService.deleteStaff(restaurantId, staffId, request.user.id);
+    return this.staffService.deleteStaff(
+      restaurantId,
+      staffId,
+      request.user.id,
+    );
   }
 }

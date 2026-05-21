@@ -8,13 +8,18 @@ import { DishesController } from './../src/menu/dishes.controller';
 import { DishesService } from './../src/menu/dishes.service';
 import { MenuController } from './../src/menu/menu.controller';
 import { MenuService } from './../src/menu/menu.service';
+import { MenuOwnerController } from './../src/menu/menu-owner.controller';
+import { MenuOwnerService } from './../src/menu/menu-owner.service';
 
 describe('MenuController (e2e)', () => {
   let app: INestApplication<App>;
   const menuServiceMock = {
     create: jest.fn(),
     getMenu: jest.fn(),
-    getMenuForOwner: jest.fn(),
+  };
+
+  const menuOwnerServiceMock = {
+    getFullMenu: jest.fn(),
   };
 
   const categoriesServiceMock = {
@@ -31,11 +36,20 @@ describe('MenuController (e2e)', () => {
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      controllers: [MenuController, CategoriesController, DishesController],
+      controllers: [
+        MenuController,
+        MenuOwnerController,
+        CategoriesController,
+        DishesController,
+      ],
       providers: [
         {
           provide: MenuService,
           useValue: menuServiceMock,
+        },
+        {
+          provide: MenuOwnerService,
+          useValue: menuOwnerServiceMock,
         },
         {
           provide: CategoriesService,
@@ -189,7 +203,7 @@ describe('MenuController (e2e)', () => {
   });
 
   it('/menu/owner/:restaurantId (GET) should return full menu for owner', async () => {
-    menuServiceMock.getMenuForOwner.mockResolvedValue({
+    menuOwnerServiceMock.getFullMenu.mockResolvedValue({
       restaurantId: 1,
       categories: [
         {
@@ -278,7 +292,7 @@ describe('MenuController (e2e)', () => {
         ],
       });
 
-    expect(menuServiceMock.getMenuForOwner).toHaveBeenCalledWith(1, 1);
+    expect(menuOwnerServiceMock.getFullMenu).toHaveBeenCalledWith(1);
   });
 
   it('/menu/owner/:restaurantId (GET) should validate restaurantId', async () => {
@@ -348,48 +362,68 @@ describe('MenuController (e2e)', () => {
   });
 
   it('/menu/owner/categories/:categoryId/dishes (POST) should create dish', async () => {
-    const payload = {
-      name: 'Tiramisu',
-      price: 6.5,
-      isAvailable: true,
-    };
-
     dishesServiceMock.createDish.mockResolvedValue({
       message: 'Dish created successfully',
-      dish: { id: 'dish_3', categoryId: 'cat_2', ...payload },
+      dish: {
+        id: 'dish_3',
+        categoryId: 'cat_2',
+        name: 'Tiramisu',
+        price: 6.5,
+        isAvailable: true,
+        images: [],
+      },
     });
 
     await request(app.getHttpServer())
       .post('/menu/owner/categories/cat_2/dishes')
-      .send(payload)
+      .send({
+        name: 'Tiramisu',
+        price: 6.5,
+        isAvailable: true,
+      })
       .expect(201);
 
     expect(dishesServiceMock.createDish).toHaveBeenCalledWith(
       'cat_2',
-      payload,
+      {
+        name: 'Tiramisu',
+        price: 6.5,
+        isAvailable: true,
+      },
       1,
+      undefined,
     );
   });
 
   it('/menu/owner/dishes/:dishId (PATCH) should update dish', async () => {
-    const payload = {
-      isAvailable: false,
-    };
-
     dishesServiceMock.updateDish.mockResolvedValue({
       message: 'Dish updated successfully',
-      dish: { id: 'dish_1', ...payload },
+      dish: {
+        id: 'dish_1',
+        isAvailable: false,
+        images: [],
+      },
     });
 
     await request(app.getHttpServer())
       .patch('/menu/owner/dishes/dish_1')
-      .send(payload)
+      .field('name', 'Updated dish name')
+      .attach('photo', Buffer.from('fake-image-content'), {
+        filename: 'updated-dish.png',
+        contentType: 'image/png',
+      })
       .expect(200);
 
     expect(dishesServiceMock.updateDish).toHaveBeenCalledWith(
       'dish_1',
-      payload,
+      {
+        name: 'Updated dish name',
+      },
       1,
+      expect.objectContaining({
+        originalname: 'updated-dish.png',
+        mimetype: 'image/png',
+      }),
     );
   });
 

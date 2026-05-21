@@ -7,7 +7,11 @@ import { UpdateStaffDto } from './dto/update-staff.dto';
 export class StaffService {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async createStaff(restaurantId: number, createStaffDto: CreateStaffDto, userId: number) {
+  async createStaff(
+    restaurantId: number,
+    createStaffDto: CreateStaffDto,
+    userId: number,
+  ) {
     const restaurant = await this.prismaService.restaurant.findFirst({
       where: {
         id: restaurantId,
@@ -59,7 +63,12 @@ export class StaffService {
     return staff;
   }
 
-  async updateStaff(restaurantId: number, staffId: string, updateStaffDto: UpdateStaffDto, userId: number) {
+  async updateStaff(
+    restaurantId: number,
+    staffId: string,
+    updateStaffDto: UpdateStaffDto,
+    userId: number,
+  ) {
     const staff = await this.prismaService.staff.findFirst({
       where: {
         id: staffId,

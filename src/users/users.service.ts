@@ -20,22 +20,18 @@ export class UsersService {
 
   private getResendClient() {
     const apiKey = process.env.RESEND_API_KEY;
-
     if (!apiKey) {
       throw new BadRequestException('Email service is not configured');
     }
-
     return new Resend(apiKey);
   }
 
   async requestLoginCode(email: string) {
     const resend = this.getResendClient();
-
     const loginCode = String(randomInt(0, 1000000)).padStart(6, '0');
     const loginCodeHash = await hash(loginCode, 10);
     const loginCodeExpiresAt = new Date(Date.now() + 2 * 60 * 1000);
 
-    // Створюємо або знаходимо користувача без застарілих полів кодів
     await this.prismaService.user.upsert({
       where: { email },
       create: {
@@ -46,7 +42,6 @@ export class UsersService {
       update: {},
     });
 
-    // Зберігаємо код у нову окрему таблицю LoginCode
     await this.prismaService.loginCode.upsert({
       where: { email },
       create: {
@@ -67,9 +62,7 @@ export class UsersService {
       html: `<p>Your login code is <strong>${loginCode}</strong>. It expires in 2 minutes.</p>`,
     });
 
-    return {
-      message: 'Code sent to email',
-    };
+    return { message: 'Code sent to email' };
   }
 
   async verifyLoginCode(
@@ -94,7 +87,6 @@ export class UsersService {
     }
 
     const isCodeValid = await compare(code, activeCode.code);
-
     if (!isCodeValid) {
       throw new UnauthorizedException('Invalid code');
     }
@@ -102,7 +94,6 @@ export class UsersService {
     const sessionExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const sessionToken = randomUUID();
 
-    // Використовуємо транзакцію: видаляємо використаний код і створюємо сесію
     await this.prismaService.$transaction([
       this.prismaService.loginCode.delete({ where: { email } }),
       this.prismaService.session.create({
@@ -116,9 +107,7 @@ export class UsersService {
 
     return {
       message: `Login for ${email} successful`,
-      session: {
-        token: sessionToken,
-      },
+      session: { token: sessionToken },
     };
   }
 
@@ -126,21 +115,16 @@ export class UsersService {
     if (!sessionToken) {
       throw new BadRequestException('Session token is required');
     }
-
     await this.prismaService.session.deleteMany({
       where: { token: sessionToken },
     });
-
-    return {
-      message: 'Logout successful',
-    };
+    return { message: 'Logout successful' };
   }
 
   async validateSessionToken(sessionToken: string) {
     if (!sessionToken) {
       throw new UnauthorizedException('Session token is required');
     }
-
     const session = await this.prismaService.session.findUnique({
       where: { token: sessionToken },
       include: { user: true },
@@ -149,13 +133,11 @@ export class UsersService {
     if (!session || session.expiresAt <= new Date()) {
       throw new UnauthorizedException('Invalid or expired session token');
     }
-
     return session.user;
   }
 
   async getMe(sessionToken: string) {
     const user = await this.validateSessionToken(sessionToken);
-
     const restaurants = await this.prismaService.restaurant.findMany({
       where: { ownerId: user.id },
     });
@@ -168,9 +150,9 @@ export class UsersService {
         lastName: user.lastName,
         photo: user.photo,
         role: user.role,
-        restaurants: restaurants.map((restaurant) => ({
-          id: restaurant.id,
-          name: restaurant.title,
+        restaurants: restaurants.map((r) => ({
+          id: r.id,
+          name: r.title,
         })),
       },
     };

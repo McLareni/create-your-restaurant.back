@@ -59,7 +59,7 @@ export class DishesService {
       throw new NotFoundException('Category not found');
     }
 
-    const { ingredients, variants, modifierIds, ...dishData } = createDishDto;
+    const { ingredients, variants, modifierIds, upsellDishIds, ...dishData } = createDishDto;
 
     return this.prismaService.$transaction(async (tx) => {
       const dish = await tx.dish.create({
@@ -130,7 +130,7 @@ export class DishesService {
       throw new NotFoundException('Dish not found');
     }
 
-    const { ingredients, variants, modifierIds, categoryId, sortOrder, ...dishData } = updateDishDto;
+    const { ingredients, variants, modifierIds, upsellDishIds, categoryId, sortOrder, ...dishData } = updateDishDto;
 
     return this.prismaService.$transaction(async (tx) => {
       if (ingredients) await tx.ingredientItem.deleteMany({ where: { dishId } });
