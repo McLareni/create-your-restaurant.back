@@ -79,7 +79,10 @@ export class RestaurantsController {
   @ApiCookieAuth('gustio_session')
   @ApiResponse({ status: 200, description: 'Restaurant deleted successfully' })
   @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
-  @ApiResponse({ status: 404, description: 'Restaurant not found or access denied' })
+  @ApiResponse({
+    status: 404,
+    description: 'Restaurant not found or access denied',
+  })
   @Delete(':id')
   async delete(
     @Param('id', ParseIntPipe) id: number,
