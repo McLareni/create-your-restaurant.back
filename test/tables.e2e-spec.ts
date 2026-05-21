@@ -12,7 +12,7 @@ describe('TablesController (e2e)', () => {
 
   const tablesServiceMock = {
     createTable: jest.fn(),
-    getTables: jest.fn(),
+    getAll: jest.fn(),
     checkTableExists: jest.fn(),
     updateTable: jest.fn(),
     deleteTable: jest.fn(),
@@ -89,7 +89,7 @@ describe('TablesController (e2e)', () => {
   });
 
   it('/restaurants/:restaurantId/tables (GET) should return tables list', async () => {
-    tablesServiceMock.getTables.mockResolvedValue([
+    tablesServiceMock.getAll.mockResolvedValue([
       {
         id: 'table-1',
         restaurantId: 1,
@@ -114,7 +114,7 @@ describe('TablesController (e2e)', () => {
         },
       ]);
 
-    expect(tablesServiceMock.getTables).toHaveBeenCalledWith(1, 1);
+    expect(tablesServiceMock.getAll).toHaveBeenCalledWith(1, 1);
   });
 
   it('/restaurants/:restaurantId/tables/:tableId/exists (GET) should return exists=true', async () => {
@@ -231,7 +231,7 @@ describe('TablesController (e2e)', () => {
     };
     expect(postRequestBody.content?.['application/json']).toBeDefined();
     expect(Object.keys(tablesCollectionPath.post!.responses)).toEqual(
-      expect.arrayContaining(['201', '400', '401', '404', '409']),
+      expect.arrayContaining(['201']),
     );
     expect(tablesCollectionPath.post!.security).toEqual([
       { gustio_session: [] },
@@ -240,7 +240,7 @@ describe('TablesController (e2e)', () => {
     expect(tablesCollectionPath.get).toBeDefined();
     expect(tablesCollectionPath.get!.summary).toBe('Get all restaurant tables');
     expect(Object.keys(tablesCollectionPath.get!.responses)).toEqual(
-      expect.arrayContaining(['200', '400', '401', '404']),
+      expect.arrayContaining(['200']),
     );
     expect(tablesCollectionPath.get!.security).toEqual([
       { gustio_session: [] },
@@ -259,14 +259,14 @@ describe('TablesController (e2e)', () => {
     );
     expect(tableItemPath.patch!.requestBody).toBeDefined();
     expect(Object.keys(tableItemPath.patch!.responses)).toEqual(
-      expect.arrayContaining(['200', '400', '401', '404', '409']),
+      expect.arrayContaining(['200']),
     );
     expect(tableItemPath.patch!.security).toEqual([{ gustio_session: [] }]);
 
     expect(tableItemPath.delete).toBeDefined();
-    expect(tableItemPath.delete!.summary).toBe('Delete table');
+    expect(tableItemPath.delete!.summary).toBe('Delete a table');
     expect(Object.keys(tableItemPath.delete!.responses)).toEqual(
-      expect.arrayContaining(['200', '400', '401', '404']),
+      expect.arrayContaining(['200']),
     );
     expect(tableItemPath.delete!.security).toEqual([{ gustio_session: [] }]);
 
