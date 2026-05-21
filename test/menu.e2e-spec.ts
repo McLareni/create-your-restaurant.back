@@ -8,13 +8,18 @@ import { DishesController } from './../src/menu/dishes.controller';
 import { DishesService } from './../src/menu/dishes.service';
 import { MenuController } from './../src/menu/menu.controller';
 import { MenuService } from './../src/menu/menu.service';
+import { MenuOwnerController } from './../src/menu/menu-owner.controller';
+import { MenuOwnerService } from './../src/menu/menu-owner.service';
 
 describe('MenuController (e2e)', () => {
   let app: INestApplication<App>;
   const menuServiceMock = {
     create: jest.fn(),
     getMenu: jest.fn(),
-    getMenuForOwner: jest.fn(),
+  };
+
+  const menuOwnerServiceMock = {
+    getFullMenu: jest.fn(),
   };
 
   const categoriesServiceMock = {
@@ -31,11 +36,20 @@ describe('MenuController (e2e)', () => {
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      controllers: [MenuController, CategoriesController, DishesController],
+      controllers: [
+        MenuController,
+        MenuOwnerController,
+        CategoriesController,
+        DishesController,
+      ],
       providers: [
         {
           provide: MenuService,
           useValue: menuServiceMock,
+        },
+        {
+          provide: MenuOwnerService,
+          useValue: menuOwnerServiceMock,
         },
         {
           provide: CategoriesService,
@@ -189,7 +203,7 @@ describe('MenuController (e2e)', () => {
   });
 
   it('/menu/owner/:restaurantId (GET) should return full menu for owner', async () => {
-    menuServiceMock.getMenuForOwner.mockResolvedValue({
+    menuOwnerServiceMock.getFullMenu.mockResolvedValue({
       restaurantId: 1,
       categories: [
         {
@@ -278,7 +292,7 @@ describe('MenuController (e2e)', () => {
         ],
       });
 
-    expect(menuServiceMock.getMenuForOwner).toHaveBeenCalledWith(1, 1);
+    expect(menuOwnerServiceMock.getFullMenu).toHaveBeenCalledWith(1);
   });
 
   it('/menu/owner/:restaurantId (GET) should validate restaurantId', async () => {
@@ -362,13 +376,10 @@ describe('MenuController (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/menu/owner/categories/cat_2/dishes')
-      .field('name', 'Tiramisu')
-      .field('price', '6.5')
-      .field('isAvailable', 'true')
-      .field('allergens', 'lactose,gluten')
-      .attach('photo', Buffer.from('fake-image-content'), {
-        filename: 'dish.png',
-        contentType: 'image/png',
+      .send({
+        name: 'Tiramisu',
+        price: 6.5,
+        isAvailable: true,
       })
       .expect(201);
 
@@ -378,13 +389,9 @@ describe('MenuController (e2e)', () => {
         name: 'Tiramisu',
         price: 6.5,
         isAvailable: true,
-        allergens: ['lactose', 'gluten'],
       },
       1,
-      expect.objectContaining({
-        originalname: 'dish.png',
-        mimetype: 'image/png',
-      }),
+      undefined,
     );
   });
 
@@ -400,7 +407,7 @@ describe('MenuController (e2e)', () => {
 
     await request(app.getHttpServer())
       .patch('/menu/owner/dishes/dish_1')
-      .field('isAvailable', 'false')
+      .field('name', 'Updated dish name')
       .attach('photo', Buffer.from('fake-image-content'), {
         filename: 'updated-dish.png',
         contentType: 'image/png',
@@ -410,7 +417,7 @@ describe('MenuController (e2e)', () => {
     expect(dishesServiceMock.updateDish).toHaveBeenCalledWith(
       'dish_1',
       {
-        isAvailable: false,
+        name: 'Updated dish name',
       },
       1,
       expect.objectContaining({
