@@ -8,7 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateDishDto } from './dto/create-dish.dto';
 import { UpdateDishDto } from './dto/update-dish.dto';
 import { ReorderDishesDto } from './dto/reorder-dishes.dto';
-import { BadgeType } from '@prisma/client';
+import { BadgeType, Prisma } from '@prisma/client';
 
 type UploadedDishImage = {
   buffer: Buffer;
@@ -17,33 +17,6 @@ type UploadedDishImage = {
   size: number;
 };
 
-const dishWithImagesSelect = {
-  id: true,
-  categoryId: true,
-  name: true,
-  description: true,
-  price: true,
-  weight: true,
-  cookingTime: true,
-  calories: true,
-  isVegan: true,
-  isSpicy: true,
-  isLactoseFree: true,
-  badge: true,
-  allergens: true,
-  isAvailable: true,
-  images: {
-    select: {
-      image: {
-        select: {
-          id: true,
-          url: true,
-        },
-      },
-    },
-  },
-} as const;
-
 @Injectable()
 export class DishesService {
   constructor(
@@ -51,17 +24,63 @@ export class DishesService {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
+  private async attachDishImage(
+    tx: Prisma.TransactionClient,
+    dishId: string,
+    file: UploadedDishImage,
+  ) {
+    if (!file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('Only image files are allowed');
+    }
+
+    const uploaded = await this.cloudinaryService.uploadImage(
+      file.buffer,
+      'dishes',
+    );
+
+    await tx.image.create({
+      data: {
+        url: uploaded.secure_url,
+        imageDishes: {
+          create: {
+            dishId,
+          },
+        },
+      },
+    });
+  }
+
   async getTagsLookup() {
-    const defaultTags = ['Веган', 'Гостро', 'Без лактози', 'Біо', 'Фітнес', 'Шеф-рецепт'];
-    const dishes = await this.prismaService.dish.findMany({ select: { tags: true } });
-    const usedTags = Array.from(new Set(dishes.flatMap(d => d.tags)));
+    const defaultTags = [
+      'Веган',
+      'Гостро',
+      'Без лактози',
+      'Біо',
+      'Фітнес',
+      'Шеф-рецепт',
+    ];
+    const dishes = await this.prismaService.dish.findMany({
+      select: { tags: true },
+    });
+    const usedTags = Array.from(new Set(dishes.flatMap((d) => d.tags)));
     return Array.from(new Set([...defaultTags, ...usedTags]));
   }
 
   async getAllergensLookup() {
-    const defaultAllergens = ['Глютен', 'Лактоза', 'Горіхи', 'Морепродукти', 'Арахіс', 'Яйця'];
-    const dishes = await this.prismaService.dish.findMany({ select: { allergens: true } });
-    const usedAllergens = Array.from(new Set(dishes.flatMap(d => d.allergens)));
+    const defaultAllergens = [
+      'Глютен',
+      'Лактоза',
+      'Горіхи',
+      'Морепродукти',
+      'Арахіс',
+      'Яйця',
+    ];
+    const dishes = await this.prismaService.dish.findMany({
+      select: { allergens: true },
+    });
+    const usedAllergens = Array.from(
+      new Set(dishes.flatMap((d) => d.allergens)),
+    );
     return Array.from(new Set([...defaultAllergens, ...usedAllergens]));
   }
 
@@ -91,7 +110,12 @@ export class DishesService {
     return { message: 'Allergen removed from all dishes successfully' };
   }
 
-  async createDish(categoryId: string, createDishDto: CreateDishDto, userId: number) {
+  async createDish(
+    categoryId: string,
+    createDishDto: CreateDishDto,
+    userId: number,
+    file?: UploadedDishImage,
+  ) {
     const category = await this.prismaService.category.findFirst({
       where: { id: categoryId, restaurant: { ownerId: userId } },
       select: { id: true },
@@ -101,8 +125,11 @@ export class DishesService {
       throw new NotFoundException('Category not found');
     }
 
-    const { ingredients, variants, modifierIds, upsellDishIds, ...dishData } = createDishDto;
-    const dishCount = await this.prismaService.dish.count({ where: { categoryId } });
+    const { ingredients, variants, modifierIds, upsellDishIds, ...dishData } =
+      createDishDto;
+    const dishCount = await this.prismaService.dish.count({
+      where: { categoryId },
+    });
 
     return this.prismaService.$transaction(async (tx) => {
       const dish = await tx.dish.create({
@@ -166,9 +193,26 @@ export class DishesService {
         });
       }
 
+      if (file) {
+        await this.attachDishImage(tx, dish.id, file);
+      }
+
       return tx.dish.findUnique({
         where: { id: dish.id },
-        include: { variants: true, ingredients: true },
+        include: {
+          variants: true,
+          ingredients: true,
+          images: {
+            include: {
+              image: {
+                select: {
+                  id: true,
+                  url: true,
+                },
+              },
+            },
+          },
+        },
       });
     });
   }
@@ -188,12 +232,29 @@ export class DishesService {
       throw new NotFoundException('Dish not found');
     }
 
-    const { ingredients, variants, modifierIds, upsellDishIds, categoryId, sortOrder, ...dishData } = updateDishDto;
+    const {
+      ingredients,
+      variants,
+      modifierIds,
+      upsellDishIds,
+      categoryId,
+      sortOrder,
+      ...dishData
+    } = updateDishDto;
+
+    const isBadgeType = (value: string): value is BadgeType =>
+      (Object.values(BadgeType) as BadgeType[]).includes(value as BadgeType);
+
+    const badgeValue: BadgeType | undefined =
+      dishData.badge && isBadgeType(dishData.badge)
+        ? dishData.badge
+        : undefined;
 
     return this.prismaService.$transaction(async (tx) => {
-      if (ingredients) await tx.dishIngredient.deleteMany({ where: { dishId } });
+      if (ingredients)
+        await tx.dishIngredient.deleteMany({ where: { dishId } });
       if (variants) await tx.dishVariant.deleteMany({ where: { dishId } });
-      
+
       await tx.dishModifier.deleteMany({ where: { dishId } });
       await tx.dishUpsell.deleteMany({ where: { mainDishId: dishId } });
 
@@ -209,7 +270,7 @@ export class DishesService {
           isVegan: dishData.isVegan,
           isSpicy: dishData.isSpicy,
           isLactoseFree: dishData.isLactoseFree,
-          badge: dishData.badge ? (dishData.badge as BadgeType) : undefined,
+          badge: badgeValue,
           taxRate: dishData.taxRate,
           isAvailable: dishData.isAvailable,
           allergens: dishData.allergens,
@@ -238,6 +299,10 @@ export class DishesService {
             upsellDishId: targetId,
           })),
         });
+      }
+
+      if (file) {
+        await this.attachDishImage(tx, dishId, file);
       }
 
       return updatedDish;

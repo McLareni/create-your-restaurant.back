@@ -1,5 +1,25 @@
-import { Body, Controller, Delete, Param, Patch, Post, Req, Get } from '@nestjs/common';
-import { ApiBody, ApiCookieAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Param,
+  Patch,
+  Post,
+  Req,
+  Get,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBody,
+  ApiConsumes,
+  ApiCookieAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
 import { CreateDishDto } from './dto/create-dish.dto';
 import { UpdateDishDto } from './dto/update-dish.dto';
@@ -51,7 +71,10 @@ export class DishesController {
     @Param('allergenName') allergenName: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.dishesService.deleteAllergenLookup(allergenName, request.user.id);
+    return this.dishesService.deleteAllergenLookup(
+      allergenName,
+      request.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Create dish for owner' })
@@ -74,7 +97,12 @@ export class DishesController {
     @Req() request: AuthenticatedRequest,
     @UploadedFile() file?: UploadedDishImage,
   ) {
-    return this.dishesService.createDish(categoryId, createDishDto, request.user.id);
+    return this.dishesService.createDish(
+      categoryId,
+      createDishDto,
+      request.user.id,
+      file,
+    );
   }
 
   @ApiOperation({ summary: 'Reorder dishes for owner' })
@@ -109,7 +137,12 @@ export class DishesController {
     @Req() request: AuthenticatedRequest,
     @UploadedFile() file?: UploadedDishImage,
   ) {
-    return this.dishesService.updateDish(dishId, updateDishDto, request.user.id);
+    return this.dishesService.updateDish(
+      dishId,
+      updateDishDto,
+      request.user.id,
+      file,
+    );
   }
 
   @ApiOperation({ summary: 'Delete dish for owner' })
