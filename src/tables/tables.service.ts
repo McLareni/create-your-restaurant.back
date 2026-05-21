@@ -64,6 +64,20 @@ export class TablesService {
     }));
   }
 
+  async checkTableExists(restaurantId: number, tableId: string) {
+    const table = await this.prismaService.diningTable.findFirst({
+      where: {
+        id: tableId,
+        restaurantId,
+      },
+      select: { id: true },
+    });
+
+    return {
+      exists: Boolean(table),
+    };
+  }
+
   async updateTable(
     restaurantId: number,
     tableId: string,

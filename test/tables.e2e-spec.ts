@@ -13,6 +13,7 @@ describe('TablesController (e2e)', () => {
   const tablesServiceMock = {
     createTable: jest.fn(),
     getTables: jest.fn(),
+    checkTableExists: jest.fn(),
     updateTable: jest.fn(),
     deleteTable: jest.fn(),
   };
@@ -73,11 +74,7 @@ describe('TablesController (e2e)', () => {
         },
       });
 
-    expect(tablesServiceMock.createTable).toHaveBeenCalledWith(
-      1,
-      payload,
-      1,
-    );
+    expect(tablesServiceMock.createTable).toHaveBeenCalledWith(1, payload, 1);
   });
 
   it('/restaurants/:restaurantId/tables (POST) should validate payload', async () => {
@@ -118,6 +115,28 @@ describe('TablesController (e2e)', () => {
       ]);
 
     expect(tablesServiceMock.getTables).toHaveBeenCalledWith(1, 1);
+  });
+
+  it('/restaurants/:restaurantId/tables/:tableId/exists (GET) should return exists=true', async () => {
+    tablesServiceMock.checkTableExists.mockResolvedValue({
+      exists: true,
+    });
+
+    await request(app.getHttpServer())
+      .get('/restaurants/1/tables/table-1/exists')
+      .expect(200)
+      .expect({ exists: true });
+
+    expect(tablesServiceMock.checkTableExists).toHaveBeenCalledWith(
+      1,
+      'table-1',
+    );
+  });
+
+  it('/restaurants/:restaurantId/tables/:tableId/exists (GET) should validate restaurantId', async () => {
+    await request(app.getHttpServer())
+      .get('/restaurants/not-number/tables/table-1/exists')
+      .expect(400);
   });
 
   it('/restaurants/:restaurantId/tables/:tableId (PATCH) should update table', async () => {
@@ -170,11 +189,7 @@ describe('TablesController (e2e)', () => {
       .expect(200)
       .expect({ message: 'Table deleted successfully' });
 
-    expect(tablesServiceMock.deleteTable).toHaveBeenCalledWith(
-      1,
-      'table-1',
-      1,
-    );
+    expect(tablesServiceMock.deleteTable).toHaveBeenCalledWith(1, 'table-1', 1);
   });
 
   it('Swagger should fully describe tables endpoints', () => {
@@ -196,11 +211,12 @@ describe('TablesController (e2e)', () => {
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);
 
-    const tablesCollectionPath = document.paths['/restaurants/{restaurantId}/tables'];
+    const tablesCollectionPath =
+      document.paths['/restaurants/{restaurantId}/tables'];
     expect(tablesCollectionPath).toBeDefined();
     expect(tablesCollectionPath.post).toBeDefined();
-    expect(tablesCollectionPath.post.summary).toBe('Create table');
-    expect(tablesCollectionPath.post.parameters).toEqual(
+    expect(tablesCollectionPath.post!.summary).toBe('Create table');
+    expect(tablesCollectionPath.post!.parameters).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           in: 'path',
@@ -209,46 +225,67 @@ describe('TablesController (e2e)', () => {
         }),
       ]),
     );
-    expect(tablesCollectionPath.post.requestBody).toBeDefined();
+    expect(tablesCollectionPath.post!.requestBody).toBeDefined();
     expect(
-      tablesCollectionPath.post.requestBody.content['application/json'],
+      tablesCollectionPath.post!.requestBody!.content['application/json'],
     ).toBeDefined();
-    expect(Object.keys(tablesCollectionPath.post.responses)).toEqual(
+    expect(Object.keys(tablesCollectionPath.post!.responses)).toEqual(
       expect.arrayContaining(['201', '400', '401', '404', '409']),
     );
-    expect(tablesCollectionPath.post.security).toEqual([
+    expect(tablesCollectionPath.post!.security).toEqual([
       { gustio_session: [] },
     ]);
 
     expect(tablesCollectionPath.get).toBeDefined();
-    expect(tablesCollectionPath.get.summary).toBe('Get all restaurant tables');
-    expect(Object.keys(tablesCollectionPath.get.responses)).toEqual(
+    expect(tablesCollectionPath.get!.summary).toBe('Get all restaurant tables');
+    expect(Object.keys(tablesCollectionPath.get!.responses)).toEqual(
       expect.arrayContaining(['200', '400', '401', '404']),
     );
-    expect(tablesCollectionPath.get.security).toEqual([{ gustio_session: [] }]);
+    expect(tablesCollectionPath.get!.security).toEqual([
+      { gustio_session: [] },
+    ]);
 
-    const tableItemPath = document.paths['/restaurants/{restaurantId}/tables/{tableId}'];
+    const tableItemPath =
+      document.paths['/restaurants/{restaurantId}/tables/{tableId}'];
     expect(tableItemPath).toBeDefined();
     expect(tableItemPath.patch).toBeDefined();
-    expect(tableItemPath.patch.summary).toBe('Update table');
-    expect(tableItemPath.patch.parameters).toEqual(
+    expect(tableItemPath.patch!.summary).toBe('Update table');
+    expect(tableItemPath.patch!.parameters).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ in: 'path', name: 'restaurantId' }),
         expect.objectContaining({ in: 'path', name: 'tableId' }),
       ]),
     );
-    expect(tableItemPath.patch.requestBody).toBeDefined();
-    expect(Object.keys(tableItemPath.patch.responses)).toEqual(
+    expect(tableItemPath.patch!.requestBody).toBeDefined();
+    expect(Object.keys(tableItemPath.patch!.responses)).toEqual(
       expect.arrayContaining(['200', '400', '401', '404', '409']),
     );
-    expect(tableItemPath.patch.security).toEqual([{ gustio_session: [] }]);
+    expect(tableItemPath.patch!.security).toEqual([{ gustio_session: [] }]);
 
     expect(tableItemPath.delete).toBeDefined();
-    expect(tableItemPath.delete.summary).toBe('Delete table');
-    expect(Object.keys(tableItemPath.delete.responses)).toEqual(
+    expect(tableItemPath.delete!.summary).toBe('Delete table');
+    expect(Object.keys(tableItemPath.delete!.responses)).toEqual(
       expect.arrayContaining(['200', '400', '401', '404']),
     );
-    expect(tableItemPath.delete.security).toEqual([{ gustio_session: [] }]);
+    expect(tableItemPath.delete!.security).toEqual([{ gustio_session: [] }]);
+
+    const tableExistsPath =
+      document.paths['/restaurants/{restaurantId}/tables/{tableId}/exists'];
+    expect(tableExistsPath).toBeDefined();
+    expect(tableExistsPath.get).toBeDefined();
+    expect(tableExistsPath.get!.summary).toBe(
+      'Check if table exists by restaurant and table id',
+    );
+    expect(tableExistsPath.get!.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ in: 'path', name: 'restaurantId' }),
+        expect.objectContaining({ in: 'path', name: 'tableId' }),
+      ]),
+    );
+    expect(Object.keys(tableExistsPath.get!.responses)).toEqual(
+      expect.arrayContaining(['200', '400']),
+    );
+    expect(tableExistsPath.get!.security).toBeUndefined();
   });
 
   afterEach(async () => {
