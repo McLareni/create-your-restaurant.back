@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { ReorderCategoriesDto } from './dto/reorder-categories.dto';
-import { BadgeType } from '@prisma/client';
+import { DishBadge } from '@prisma/client';
 
 @Injectable()
 export class CategoriesService {
@@ -35,7 +35,7 @@ export class CategoriesService {
               isVegan: dishData.isVegan ?? false,
               isSpicy: dishData.isSpicy ?? false,
               isLactoseFree: dishData.isLactoseFree ?? false,
-              badge: (dishData.badge as BadgeType) || BadgeType.NONE,
+              badge: (dishData.badge as DishBadge) || DishBadge.NONE,
               taxRate: dishData.taxRate ?? 0,
               isAvailable: dishData.isAvailable ?? true,
               allergens: dishData.allergens ?? [],
