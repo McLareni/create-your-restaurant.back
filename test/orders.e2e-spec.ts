@@ -276,48 +276,50 @@ describe('OrdersController (e2e)', () => {
     expect(ordersCollectionPath).toBeDefined();
 
     expect(ordersCollectionPath.post).toBeDefined();
-    expect(ordersCollectionPath.post.summary).toBe('Create order');
-    expect(ordersCollectionPath.post.requestBody).toBeDefined();
-    expect(Object.keys(ordersCollectionPath.post.responses)).toEqual(
+    expect(ordersCollectionPath.post!.summary).toBe('Create order');
+    expect(ordersCollectionPath.post!.requestBody).toBeDefined();
+    expect(Object.keys(ordersCollectionPath.post!.responses)).toEqual(
       expect.arrayContaining(['201', '400', '401', '404']),
     );
-    expect(ordersCollectionPath.post.security).toEqual([
+    expect(ordersCollectionPath.post!.security).toEqual([
       { gustio_session: [] },
     ]);
 
     expect(ordersCollectionPath.get).toBeDefined();
-    expect(ordersCollectionPath.get.summary).toBe('Get restaurant orders');
-    expect(ordersCollectionPath.get.parameters).toEqual(
+    expect(ordersCollectionPath.get!.summary).toBe('Get restaurant orders');
+    expect(ordersCollectionPath.get!.parameters).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ in: 'path', name: 'restaurantId' }),
         expect.objectContaining({ in: 'query', name: 'status' }),
       ]),
     );
-    expect(Object.keys(ordersCollectionPath.get.responses)).toEqual(
+    expect(Object.keys(ordersCollectionPath.get!.responses)).toEqual(
       expect.arrayContaining(['200', '401', '404']),
     );
-    expect(ordersCollectionPath.get.security).toEqual([{ gustio_session: [] }]);
+    expect(ordersCollectionPath.get!.security).toEqual([
+      { gustio_session: [] },
+    ]);
 
     const orderItemPath =
       document.paths['/restaurants/{restaurantId}/orders/{orderId}'];
     expect(orderItemPath).toBeDefined();
 
     expect(orderItemPath.get).toBeDefined();
-    expect(orderItemPath.get.summary).toBe('Get order by ID');
-    expect(Object.keys(orderItemPath.get.responses)).toEqual(
+    expect(orderItemPath.get!.summary).toBe('Get order by ID');
+    expect(Object.keys(orderItemPath.get!.responses)).toEqual(
       expect.arrayContaining(['200', '401', '404']),
     );
 
     expect(orderItemPath.patch).toBeDefined();
-    expect(orderItemPath.patch.summary).toBe('Update order');
-    expect(orderItemPath.patch.requestBody).toBeDefined();
-    expect(Object.keys(orderItemPath.patch.responses)).toEqual(
+    expect(orderItemPath.patch!.summary).toBe('Update order');
+    expect(orderItemPath.patch!.requestBody).toBeDefined();
+    expect(Object.keys(orderItemPath.patch!.responses)).toEqual(
       expect.arrayContaining(['200', '400', '401', '404']),
     );
 
     expect(orderItemPath.delete).toBeDefined();
-    expect(orderItemPath.delete.summary).toBe('Delete order');
-    expect(Object.keys(orderItemPath.delete.responses)).toEqual(
+    expect(orderItemPath.delete!.summary).toBe('Delete order');
+    expect(Object.keys(orderItemPath.delete!.responses)).toEqual(
       expect.arrayContaining(['200', '401', '404']),
     );
   });

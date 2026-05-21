@@ -32,8 +32,56 @@ export class TablesService {
     }));
   }
 
+
+  async checkTableExists(restaurantId: number, tableId: string) {
+    const table = await this.prismaService.diningTable.findFirst({
+      where: {
+        id: tableId,
+        restaurantId,
+      },
+      select: { id: true },
+    });
+
+    return {
+      exists: Boolean(table),
+    };
+  }
+
+  async updateTable(
+    restaurantId: number,
+    tableId: string,
+    updateTableDto: UpdateTableDto,
+    userId: number,
+  ) {
+    await this.ensureRestaurantOwner(restaurantId, userId);
+    await this.ensureTableBelongsToRestaurant(restaurantId, tableId);
+
+    try {
+      const updatedTable = await this.prismaService.diningTable.update({
+        where: { id: tableId },
+        data: updateTableDto,
+      });
+
+      return {
+        message: 'Table updated successfully',
+        table: {
+          ...updatedTable,
+          canAcceptOrders: updatedTable.status === TableStatus.ACTIVE,
+        },
+      };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Table number already exists for this restaurant',
+        );
+      }
+
   async create(restaurantId: number, dto: any, userId: number) {
     await this.checkAccess(restaurantId, userId);
+
 
     const parsedNumber = parseInt(dto.tableNumber, 10);
     if (isNaN(parsedNumber)) {
