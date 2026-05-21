@@ -34,4 +34,8 @@ export class CreateStaffDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  photo?: string;
 }
