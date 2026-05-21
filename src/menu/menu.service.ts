@@ -28,41 +28,16 @@ export class MenuService {
         id: restaurantId,
         ownerId: userId,
       },
-      select: {
-        id: true,
+      include: {
         categories: {
-          orderBy: {
-            sortOrder: 'asc',
-          },
-          select: {
-            id: true,
-            name: true,
-            sortOrder: true,
+          orderBy: { sortOrder: 'asc' },
+          include: {
             dishes: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                price: true,
-                weight: true,
-                cookingTime: true,
-                calories: true,
-                isVegan: true,
-                isSpicy: true,
-                isLactoseFree: true,
-                badge: true,
-                allergens: true,
-                isAvailable: true,
-                images: {
-                  select: {
-                    image: {
-                      select: {
-                        id: true,
-                        url: true,
-                      },
-                    },
-                  },
-                },
+              orderBy: { sortOrder: 'asc' },
+              include: {
+                variants: true,
+                ingredients: true,
+                modifiers: true,
               },
             },
           },
@@ -85,54 +60,22 @@ export class MenuService {
 
   async getMenu(restaurantId: number) {
     const restaurant = await this.prismaService.restaurant.findUnique({
-      where: {
-        id: restaurantId,
-      },
-      select: {
-        id: true,
+      where: { id: restaurantId },
+      include: {
         categories: {
           where: {
             dishes: {
-              some: {
-                isAvailable: true,
-              },
+              some: { isAvailable: true },
             },
           },
-          orderBy: {
-            sortOrder: 'asc',
-          },
-          select: {
-            id: true,
-            name: true,
-            sortOrder: true,
+          orderBy: { sortOrder: 'asc' },
+          include: {
             dishes: {
-              where: {
-                isAvailable: true,
-              },
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                price: true,
-                weight: true,
-                cookingTime: true,
-                calories: true,
-                isVegan: true,
-                isSpicy: true,
-                isLactoseFree: true,
-                badge: true,
-                allergens: true,
-                isAvailable: true,
-                images: {
-                  select: {
-                    image: {
-                      select: {
-                        id: true,
-                        url: true,
-                      },
-                    },
-                  },
-                },
+              where: { isAvailable: true },
+              orderBy: { sortOrder: 'asc' },
+              include: {
+                variants: true,
+                ingredients: true,
               },
             },
           },
@@ -177,11 +120,23 @@ export class MenuService {
           data: {
             restaurantId: createMenuDto.restaurantId,
             name: category.name,
-            sortOrder: category.sortOrder,
+            sortOrder: category.sortOrder ?? 0,
             dishes: {
               create: category.dishes.map((dish) => ({
-                ...dish,
+                name: dish.name,
+                description: dish.description ?? '',
+                price: dish.price,
+                weight: dish.weight ?? null,
+                cookingTime: dish.cookingTime ?? null,
+                calories: dish.calories ?? null,
+                isVegan: dish.isVegan ?? false,
+                isSpicy: dish.isSpicy ?? false,
+                isLactoseFree: dish.isLactoseFree ?? false,
+                badge: 'NONE',
+                isAvailable: dish.isAvailable ?? true,
                 allergens: dish.allergens ?? [],
+                tags: [],
+                taxRate: 0,
               })),
             },
           },

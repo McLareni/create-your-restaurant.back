@@ -1,47 +1,49 @@
 import { Body, Controller, Delete, Param, Patch, Post, Get, Req, ParseIntPipe } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { TablesService } from './tables.service';
+import { CombosService } from './combos.service';
+import { CreateComboDto } from './dto/create-combo.dto';
+import { UpdateComboDto } from './dto/update-combo.dto';
 import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
 
-@ApiTags('Tables')
-@Controller('restaurants/:restaurantId/tables')
-export class TablesController {
-  constructor(private readonly tablesService: TablesService) {}
+@ApiTags('Combos')
+@Controller('restaurants/:restaurantId/combos')
+export class CombosController {
+  constructor(private readonly combosService: CombosService) {}
 
-  @ApiOperation({ summary: 'Get all tables for a restaurant' })
+  @ApiOperation({ summary: 'Get all combos for a restaurant' })
   @ApiCookieAuth('gustio_session')
   @Get()
   getAll(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.tablesService.getAll(restaurantId, request.user.id);
+    return this.combosService.getAll(restaurantId, request.user.id);
   }
 
-  @ApiOperation({ summary: 'Create a table' })
+  @ApiOperation({ summary: 'Create a combo pack' })
   @ApiCookieAuth('gustio_session')
   @Post()
   create(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Body() dto: any,
+    @Body() createComboDto: CreateComboDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.tablesService.create(restaurantId, dto, request.user.id);
+    return this.combosService.create(restaurantId, createComboDto, request.user.id);
   }
 
-  @ApiOperation({ summary: 'Update a table' })
+  @ApiOperation({ summary: 'Update a combo pack' })
   @ApiCookieAuth('gustio_session')
   @Patch(':id')
   update(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('id') id: string,
-    @Body() dto: any,
+    @Body() updateComboDto: UpdateComboDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.tablesService.update(restaurantId, id, dto, request.user.id);
+    return this.combosService.update(restaurantId, id, updateComboDto, request.user.id);
   }
 
-  @ApiOperation({ summary: 'Delete a table' })
+  @ApiOperation({ summary: 'Delete a combo pack' })
   @ApiCookieAuth('gustio_session')
   @Delete(':id')
   delete(
@@ -49,6 +51,6 @@ export class TablesController {
     @Param('id') id: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.tablesService.delete(restaurantId, id, request.user.id);
+    return this.combosService.delete(restaurantId, id, request.user.id);
   }
 }

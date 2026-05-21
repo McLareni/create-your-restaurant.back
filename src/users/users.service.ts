@@ -86,7 +86,6 @@ export class UsersService {
 
     const sessionExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const sessionToken = randomUUID();
-    const sessionTokenHash = await hash(sessionToken, 10);
 
     await this.prismaService.user.update({
       where: { id: user.id },
@@ -95,7 +94,7 @@ export class UsersService {
         loginCodeExpiresAt: null,
         sessions: {
           create: {
-            token: sessionTokenHash,
+            token: sessionToken, // Зберігаємо чистий UUID унікальний рядок
             expiresAt: sessionExpiresAt,
             userAgent: sessionMetadata.userAgent,
             ipAddress: sessionMetadata.ipAddress,
@@ -117,9 +116,9 @@ export class UsersService {
       throw new BadRequestException('Session token is required');
     }
 
-    const sessionTokenHash = await hash(sessionToken, 10);
+    // Видаляємо напряму за токеном через швидкий findUnique/delete селектор
     await this.prismaService.session.deleteMany({
-      where: { token: sessionTokenHash },
+      where: { token: sessionToken },
     });
 
     return {
@@ -132,19 +131,17 @@ export class UsersService {
       throw new UnauthorizedException('Session token is required');
     }
 
-    const sessions = await this.prismaService.session.findMany({
+    // Оптимізовано: Швидкий пошук за індексованим полем за 1 SQL запит замість викачування всієї бази
+    const session = await this.prismaService.session.findUnique({
+      where: { token: sessionToken },
       include: { user: true },
     });
 
-    for (const session of sessions) {
-      const isTokenValid = await compare(sessionToken, session.token);
-
-      if (isTokenValid && session.expiresAt > new Date()) {
-        return session.user;
-      }
+    if (!session || session.expiresAt <= new Date()) {
+      throw new UnauthorizedException('Invalid or expired session token');
     }
 
-    throw new UnauthorizedException('Invalid or expired session token');
+    return session.user;
   }
 
   async getMe(sessionToken: string) {

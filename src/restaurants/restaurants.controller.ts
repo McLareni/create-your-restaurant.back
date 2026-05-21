@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -31,22 +32,6 @@ export class RestaurantsController {
   @ApiResponse({
     status: 201,
     description: 'Restaurant created successfully',
-    schema: {
-      example: {
-        message: 'Restaurant created successfully',
-        restaurant: {
-          id: 1,
-          title: 'Pizza House',
-          slug: 'pizza-house',
-          type: 'CAFE',
-          currency: 'USD',
-          phoneNumber: '+380991112233',
-          city: 'Kyiv',
-          language: 'UA',
-          ownerId: 1,
-        },
-      },
-    },
   })
   @ApiResponse({ status: 400, description: 'Session token is required' })
   @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
@@ -64,11 +49,6 @@ export class RestaurantsController {
   @ApiResponse({
     status: 200,
     description: 'Slug availability status',
-    schema: {
-      example: {
-        isAvailable: true,
-      },
-    },
   })
   @ApiResponse({ status: 400, description: 'Session token is required' })
   @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
@@ -93,5 +73,18 @@ export class RestaurantsController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.restaurantsService.getAccess(id, request.user.id);
+  }
+
+  @ApiOperation({ summary: 'Delete restaurant by id' })
+  @ApiCookieAuth('gustio_session')
+  @ApiResponse({ status: 200, description: 'Restaurant deleted successfully' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
+  @ApiResponse({ status: 404, description: 'Restaurant not found or access denied' })
+  @Delete(':id')
+  async delete(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.restaurantsService.delete(id, request.user.id);
   }
 }
