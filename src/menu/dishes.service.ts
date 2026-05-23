@@ -250,36 +250,50 @@ export class DishesService {
         ? dishData.badge
         : undefined;
 
+    const dishUpdateData: Prisma.DishUpdateInput = {
+      ...(dishData.name !== undefined && { name: dishData.name }),
+      ...(dishData.description !== undefined && {
+        description: dishData.description,
+      }),
+      ...(dishData.price !== undefined && { price: dishData.price }),
+      ...(dishData.weight !== undefined && { weight: dishData.weight }),
+      ...(dishData.cookingTime !== undefined && {
+        cookingTime: dishData.cookingTime,
+      }),
+      ...(dishData.calories !== undefined && { calories: dishData.calories }),
+      ...(dishData.isVegan !== undefined && { isVegan: dishData.isVegan }),
+      ...(dishData.isSpicy !== undefined && { isSpicy: dishData.isSpicy }),
+      ...(dishData.isLactoseFree !== undefined && {
+        isLactoseFree: dishData.isLactoseFree,
+      }),
+      ...(badgeValue !== undefined && { badge: badgeValue }),
+      ...(dishData.taxRate !== undefined && { taxRate: dishData.taxRate }),
+      ...(dishData.isAvailable !== undefined && {
+        isAvailable: dishData.isAvailable,
+      }),
+      ...(dishData.allergens !== undefined && { allergens: dishData.allergens }),
+      ...(dishData.tags !== undefined && { tags: dishData.tags }),
+      ...(categoryId !== undefined && { categoryId }),
+      ...(sortOrder !== undefined && { sortOrder }),
+      ...(ingredients !== undefined && { ingredients: { create: ingredients } }),
+      ...(variants !== undefined && { variants: { create: variants } }),
+    };
+
     return this.prismaService.$transaction(async (tx) => {
       if (ingredients)
         await tx.dishIngredient.deleteMany({ where: { dishId } });
       if (variants) await tx.dishVariant.deleteMany({ where: { dishId } });
 
-      await tx.dishModifier.deleteMany({ where: { dishId } });
-      await tx.dishUpsell.deleteMany({ where: { mainDishId: dishId } });
+      if (modifierIds !== undefined) {
+        await tx.dishModifier.deleteMany({ where: { dishId } });
+      }
+      if (upsellDishIds !== undefined) {
+        await tx.dishUpsell.deleteMany({ where: { mainDishId: dishId } });
+      }
 
       const updatedDish = await tx.dish.update({
         where: { id: dishId },
-        data: {
-          name: dishData.name,
-          description: dishData.description,
-          price: dishData.price,
-          weight: dishData.weight ?? null,
-          cookingTime: dishData.cookingTime ?? null,
-          calories: dishData.calories ?? null,
-          isVegan: dishData.isVegan,
-          isSpicy: dishData.isSpicy,
-          isLactoseFree: dishData.isLactoseFree,
-          badge: badgeValue,
-          taxRate: dishData.taxRate,
-          isAvailable: dishData.isAvailable,
-          allergens: dishData.allergens,
-          tags: dishData.tags,
-          ...(categoryId && { categoryId }),
-          ...(sortOrder !== undefined && { sortOrder }),
-          ...(ingredients && { ingredients: { create: ingredients } }),
-          ...(variants && { variants: { create: variants } }),
-        },
+        data: dishUpdateData,
         include: { ingredients: true, variants: true },
       });
 

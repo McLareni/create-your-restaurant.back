@@ -17,6 +17,16 @@ export class MenuOwnerService {
           include: {
             variants: true,
             ingredients: true,
+            images: {
+              include: {
+                image: {
+                  select: {
+                    id: true,
+                    url: true,
+                  },
+                },
+              },
+            },
             modifiers: {
               select: { modifierGroupId: true },
             },
@@ -33,9 +43,11 @@ export class MenuOwnerService {
       categories: categories.map((cat) => ({
         ...cat,
         dishes: cat.dishes.map((dish) => {
-          const { upsellTo, modifiers, ...rest } = dish;
+          const { upsellTo, modifiers, images, ...rest } = dish;
           return {
             ...rest,
+            images: images.map(({ image }) => image),
+            imageUrl: images[0]?.image.url || null,
             modifierIds: modifiers.map((m) => m.modifierGroupId),
             upsellDishIds: upsellTo.map((u) => u.upsellDishId),
           };
