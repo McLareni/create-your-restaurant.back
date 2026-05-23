@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Currency, Language, RestaurantType } from '@prisma/client';
+import { EnumCurrency, EnumLanguage, EnumTypeRestaurant } from '@prisma/client';
 import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateRestaurantDto {
@@ -13,13 +13,13 @@ export class CreateRestaurantDto {
   @MaxLength(120)
   slug!: string;
 
-  @ApiProperty({ enum: RestaurantType, example: RestaurantType.CAFE })
-  @IsEnum(RestaurantType)
-  type!: RestaurantType;
+  @ApiProperty({ enum: EnumTypeRestaurant, example: EnumTypeRestaurant.CAFE })
+  @IsEnum(EnumTypeRestaurant)
+  type!: EnumTypeRestaurant;
 
-  @ApiProperty({ enum: Currency, example: Currency.USD })
-  @IsEnum(Currency)
-  currency!: Currency;
+  @ApiProperty({ enum: EnumCurrency, example: EnumCurrency.USD })
+  @IsEnum(EnumCurrency)
+  currency!: EnumCurrency;
 
   @ApiPropertyOptional({ example: '+380991112233' })
   @IsOptional()
@@ -33,7 +33,7 @@ export class CreateRestaurantDto {
   @MaxLength(120)
   city?: string;
 
-  @ApiProperty({ enum: Language, example: Language.UA })
-  @IsEnum(Language)
-  language!: Language;
+  @ApiProperty({ enum: EnumLanguage, example: EnumLanguage.UA })
+  @IsEnum(EnumLanguage)
+  language!: EnumLanguage;
 }

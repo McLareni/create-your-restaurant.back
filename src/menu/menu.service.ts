@@ -33,7 +33,7 @@ export class MenuService {
           orderBy: { sortOrder: 'asc' },
           include: {
             dishes: {
-              orderBy: { createdAt: 'asc' },
+              orderBy: { sortOrder: 'asc' },
               include: {
                 images: {
                   include: {
@@ -47,7 +47,7 @@ export class MenuService {
                 },
                 variants: true,
                 ingredients: true,
-                modifierRelation: true,
+                modifiers: true,
               },
             },
           },
@@ -82,7 +82,7 @@ export class MenuService {
           include: {
             dishes: {
               where: { isAvailable: true },
-              orderBy: { createdAt: 'asc' },
+              orderBy: { sortOrder: 'asc' },
               include: {
                 images: {
                   include: {

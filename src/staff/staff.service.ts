@@ -31,7 +31,7 @@ export class StaffService {
         lastName: createStaffDto.lastName,
         email: createStaffDto.email,
         phone: createStaffDto.phone,
-        role: createStaffDto.role as any,
+        role: createStaffDto.role,
         isActive: createStaffDto.isActive ?? true,
       },
     });
@@ -86,7 +86,7 @@ export class StaffService {
 
     const updatedStaff = await this.prismaService.staff.update({
       where: { id: staffId },
-      data: updateStaffDto as any,
+      data: updateStaffDto,
     });
 
     return {

@@ -62,23 +62,21 @@ export class ModifiersService {
     const { options, ...groupData } = updateDto;
 
     const updatedGroup = await this.prismaService.$transaction(async (tx) => {
-      await tx.modifierGroup.update({
+      const g = await tx.modifierGroup.update({
         where: { id: groupId },
         data: groupData,
       });
 
       if (options) {
-        await tx.fontModifierOption.deleteMany({ where: { modifierGroupId: groupId } });
-        for (const opt of options) {
-          await tx.fontModifierOption.create({
-            data: {
-              modifierGroupId: groupId,
-              name: opt.name,
-              price: opt.price ?? 0,
-              isAvailable: opt.isAvailable ?? true,
-            }
-          });
-        }
+        await tx.modifierOption.deleteMany({ where: { modifierGroupId: groupId } });
+        await tx.modifierOption.createMany({
+          data: options.map(opt => ({
+            modifierGroupId: groupId,
+            name: opt.name,
+            price: opt.price ?? 0,
+            isAvailable: opt.isAvailable ?? true,
+          })),
+        });
       }
 
       return tx.modifierGroup.findUnique({
@@ -97,7 +95,9 @@ export class ModifiersService {
     });
 
     if (!group) throw new NotFoundException('Modifier group not found');
+
     await this.prismaService.modifierGroup.delete({ where: { id: groupId } });
+
     return { message: 'Modifier group deleted successfully' };
   }
 
@@ -108,6 +108,7 @@ export class ModifiersService {
     });
 
     if (!dish) throw new NotFoundException('Dish not found');
+
     await this.prismaService.dishModifier.create({
       data: { dishId, modifierGroupId },
     });
@@ -122,6 +123,7 @@ export class ModifiersService {
     });
 
     if (!dish) throw new NotFoundException('Dish not found');
+
     await this.prismaService.dishModifier.delete({
       where: { dishId_modifierGroupId: { dishId, modifierGroupId } },
     });
