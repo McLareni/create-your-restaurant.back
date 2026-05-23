@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Param, Patch, Post, Get, Req, ParseIntPipe } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Param,
+  Patch,
+  Post,
+  Get,
+  Req,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CombosService } from './combos.service';
 import { CreateComboDto } from './dto/create-combo.dto';
@@ -28,7 +38,11 @@ export class CombosController {
     @Body() createComboDto: CreateComboDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.combosService.create(restaurantId, createComboDto, request.user.id);
+    return this.combosService.create(
+      restaurantId,
+      createComboDto,
+      request.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Update a combo pack' })
@@ -40,7 +54,12 @@ export class CombosController {
     @Body() updateComboDto: UpdateComboDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.combosService.update(restaurantId, id, updateComboDto, request.user.id);
+    return this.combosService.update(
+      restaurantId,
+      id,
+      updateComboDto,
+      request.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Delete a combo pack' })

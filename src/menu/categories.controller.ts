@@ -42,13 +42,19 @@ export class CategoriesController {
   @ApiOperation({ summary: 'Reorder categories for owner' })
   @ApiCookieAuth('gustio_session')
   @ApiBody({ type: ReorderCategoriesDto })
-  @ApiResponse({ status: 200, description: 'Categories reordered successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Categories reordered successfully',
+  })
   @Patch('reorder')
   reorderCategories(
     @Body() reorderCategoriesDto: ReorderCategoriesDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.categoriesService.reorderCategories(reorderCategoriesDto, request.user.id);
+    return this.categoriesService.reorderCategories(
+      reorderCategoriesDto,
+      request.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Update category for owner' })

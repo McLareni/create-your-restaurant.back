@@ -1,4 +1,11 @@
-import { IsString, IsEnum, IsNumber, IsArray, ValidateNested, Min } from 'class-validator';
+import {
+  IsString,
+  IsEnum,
+  IsNumber,
+  IsArray,
+  ValidateNested,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ComboPriceType } from '@prisma/client';
 

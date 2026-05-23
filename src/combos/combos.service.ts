@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateComboDto } from './dto/create-combo.dto';
 import { UpdateComboDto } from './dto/update-combo.dto';
@@ -52,7 +56,12 @@ export class CombosService {
     });
   }
 
-  async update(restaurantId: number, id: string, dto: UpdateComboDto, userId: number) {
+  async update(
+    restaurantId: number,
+    id: string,
+    dto: UpdateComboDto,
+    userId: number,
+  ) {
     await this.checkAccess(restaurantId, userId);
 
     const combo = await this.prisma.combo.findFirst({

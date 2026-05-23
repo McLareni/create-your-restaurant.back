@@ -7,13 +7,19 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { SessionAuthMiddleware } from '../restaurants/middleware/session-auth.middleware';
 import { UsersModule } from '../users/users.module';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { StaffController } from './staff.controller';
 import { StaffService } from './staff.service';
 
 @Module({
   imports: [UsersModule],
   controllers: [StaffController],
-  providers: [StaffService, PrismaService, SessionAuthMiddleware],
+  providers: [
+    StaffService,
+    CloudinaryService,
+    PrismaService,
+    SessionAuthMiddleware,
+  ],
 })
 export class StaffModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
@@ -27,6 +33,10 @@ export class StaffModule implements NestModule {
       {
         path: 'restaurants/:restaurantId/staff/:staffId',
         method: RequestMethod.DELETE,
+      },
+      {
+        path: 'restaurants/:restaurantId/staff/:staffId/photo',
+        method: RequestMethod.PATCH,
       },
     );
   }

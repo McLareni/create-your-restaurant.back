@@ -7,7 +7,11 @@ import { UpdateModifierGroupDto } from './dto/update-modifier.dto';
 export class ModifiersService {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async createGroup(restaurantId: number, createModifierGroupDto: CreateModifierGroupDto, userId: number) {
+  async createGroup(
+    restaurantId: number,
+    createModifierGroupDto: CreateModifierGroupDto,
+    userId: number,
+  ) {
     const restaurant = await this.prismaService.restaurant.findFirst({
       where: { id: restaurantId, ownerId: userId },
       select: { id: true },
@@ -23,7 +27,7 @@ export class ModifiersService {
         minSelections: createModifierGroupDto.minSelections ?? 0,
         maxSelections: createModifierGroupDto.maxSelections,
         options: {
-          create: createModifierGroupDto.options.map(opt => ({
+          create: createModifierGroupDto.options.map((opt) => ({
             name: opt.name,
             price: opt.price ?? 0,
             isAvailable: opt.isAvailable ?? true,
@@ -51,7 +55,12 @@ export class ModifiersService {
     });
   }
 
-  async updateGroup(restaurantId: number, groupId: string, updateDto: UpdateModifierGroupDto, userId: number) {
+  async updateGroup(
+    restaurantId: number,
+    groupId: string,
+    updateDto: UpdateModifierGroupDto,
+    userId: number,
+  ) {
     const group = await this.prismaService.modifierGroup.findFirst({
       where: { id: groupId, restaurantId, restaurant: { ownerId: userId } },
       select: { id: true },
@@ -68,9 +77,11 @@ export class ModifiersService {
       });
 
       if (options) {
-        await tx.modifierOption.deleteMany({ where: { modifierGroupId: groupId } });
+        await tx.modifierOption.deleteMany({
+          where: { modifierGroupId: groupId },
+        });
         await tx.modifierOption.createMany({
-          data: options.map(opt => ({
+          data: options.map((opt) => ({
             modifierGroupId: groupId,
             name: opt.name,
             price: opt.price ?? 0,
@@ -85,7 +96,10 @@ export class ModifiersService {
       });
     });
 
-    return { message: 'Modifier group updated successfully', group: updatedGroup };
+    return {
+      message: 'Modifier group updated successfully',
+      group: updatedGroup,
+    };
   }
 
   async deleteGroup(restaurantId: number, groupId: string, userId: number) {
@@ -101,9 +115,17 @@ export class ModifiersService {
     return { message: 'Modifier group deleted successfully' };
   }
 
-  async attachToDish(restaurantId: number, dishId: string, modifierGroupId: string, userId: number) {
+  async attachToDish(
+    restaurantId: number,
+    dishId: string,
+    modifierGroupId: string,
+    userId: number,
+  ) {
     const dish = await this.prismaService.dish.findFirst({
-      where: { id: dishId, category: { restaurantId, restaurant: { ownerId: userId } } },
+      where: {
+        id: dishId,
+        category: { restaurantId, restaurant: { ownerId: userId } },
+      },
       select: { id: true },
     });
 
@@ -116,9 +138,17 @@ export class ModifiersService {
     return { message: 'Modifier attached to dish successfully' };
   }
 
-  async detachFromDish(restaurantId: number, dishId: string, modifierGroupId: string, userId: number) {
+  async detachFromDish(
+    restaurantId: number,
+    dishId: string,
+    modifierGroupId: string,
+    userId: number,
+  ) {
     const dish = await this.prismaService.dish.findFirst({
-      where: { id: dishId, category: { restaurantId, restaurant: { ownerId: userId } } },
+      where: {
+        id: dishId,
+        category: { restaurantId, restaurant: { ownerId: userId } },
+      },
       select: { id: true },
     });
 

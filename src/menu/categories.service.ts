@@ -24,7 +24,13 @@ export class CategoriesService {
         sortOrder: createCategoryDto.sortOrder ?? 0,
         dishes: {
           create: (createCategoryDto.dishes ?? []).map((dish) => {
-            const { ingredients, variants, modifierIds, upsellDishIds, ...dishData } = dish;
+            const {
+              ingredients,
+              variants,
+              modifierIds,
+              upsellDishIds,
+              ...dishData
+            } = dish;
             return {
               name: dishData.name,
               description: dishData.description || '',
@@ -54,7 +60,10 @@ export class CategoriesService {
     return { message: 'Category created successfully', category };
   }
 
-  async reorderCategories(reorderCategoriesDto: ReorderCategoriesDto, userId: number) {
+  async reorderCategories(
+    reorderCategoriesDto: ReorderCategoriesDto,
+    userId: number,
+  ) {
     const categoryIds = reorderCategoriesDto.items.map((i) => i.id);
 
     const categories = await this.prismaService.category.findMany({
@@ -81,7 +90,11 @@ export class CategoriesService {
     return { message: 'Categories reordered successfully' };
   }
 
-  async updateCategory(categoryId: string, updateCategoryDto: UpdateCategoryDto, userId: number) {
+  async updateCategory(
+    categoryId: string,
+    updateCategoryDto: UpdateCategoryDto,
+    userId: number,
+  ) {
     const category = await this.prismaService.category.findFirst({
       where: { id: categoryId, restaurant: { ownerId: userId } },
       select: { id: true },
@@ -94,7 +107,10 @@ export class CategoriesService {
       data: updateCategoryDto,
     });
 
-    return { message: 'Category updated successfully', category: updatedCategory };
+    return {
+      message: 'Category updated successfully',
+      category: updatedCategory,
+    };
   }
 
   async deleteCategory(categoryId: string, userId: number) {

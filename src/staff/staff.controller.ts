@@ -8,9 +8,13 @@ import {
   Patch,
   Post,
   Req,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBody,
+  ApiConsumes,
   ApiCookieAuth,
   ApiOperation,
   ApiParam,
@@ -21,6 +25,13 @@ import type { AuthenticatedRequest } from '../restaurants/middleware/session-aut
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { StaffService } from './staff.service';
+
+type UploadedStaffImage = {
+  buffer: Buffer;
+  mimetype: string;
+  originalname: string;
+  size: number;
+};
 
 @ApiTags('Staff')
 @Controller('restaurants/:restaurantId/staff')
@@ -84,6 +95,34 @@ export class StaffController {
       staffId,
       updateStaffDto,
       request.user.id,
+    );
+  }
+
+  @ApiOperation({ summary: 'Upload staff member photo' })
+  @ApiCookieAuth('gustio_session')
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
+  @ApiParam({ name: 'staffId', type: String, example: 'uuid-string' })
+  @ApiResponse({ status: 200, description: 'Staff photo updated successfully' })
+  @Patch(':staffId/photo')
+  @UseInterceptors(
+    FileInterceptor('photo', {
+      limits: {
+        fileSize: 5 * 1024 * 1024,
+      },
+    }),
+  )
+  uploadStaffPhoto(
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @Param('staffId') staffId: string,
+    @Req() request: AuthenticatedRequest,
+    @UploadedFile() file?: UploadedStaffImage,
+  ) {
+    return this.staffService.uploadStaffPhoto(
+      restaurantId,
+      staffId,
+      request.user.id,
+      file,
     );
   }
 

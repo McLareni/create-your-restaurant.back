@@ -12,7 +12,7 @@ async function bootstrap() {
     origin: [frontendUrl, 'http://localhost:3000'],
     credentials: true,
   });
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   setupSwagger(app);

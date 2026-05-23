@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { CreateMenuDto } from './dto/create-menu.dto';
 import { MenuService } from './menu.service';
@@ -14,10 +22,7 @@ export class MenuController {
   }
 
   @Post()
-  create(
-    @Body() createMenuDto: CreateMenuDto,
-    @Req() request: any,
-  ) {
+  create(@Body() createMenuDto: CreateMenuDto, @Req() request: any) {
     return this.menuService.create(createMenuDto, request.user.id);
   }
 }

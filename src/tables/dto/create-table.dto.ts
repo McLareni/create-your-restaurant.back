@@ -1,6 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TableStatus } from '@prisma/client';
-import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class CreateTableDto {
   @ApiProperty({ example: 12, minimum: 1 })
@@ -17,7 +25,10 @@ export class CreateTableDto {
   @IsEnum(TableStatus)
   status?: TableStatus;
 
-  @ApiProperty({ example: 'TERRACE', description: 'Table type, e.g. BAR, TERRACE, HALL' })
+  @ApiProperty({
+    example: 'TERRACE',
+    description: 'Table type, e.g. BAR, TERRACE, HALL',
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(60)

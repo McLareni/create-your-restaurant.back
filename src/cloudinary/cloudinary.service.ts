@@ -16,9 +16,13 @@ export class CloudinaryService {
   constructor(private readonly configService: ConfigService) {}
 
   async uploadImage(fileBuffer: Buffer, folder: string) {
-    const cloudName = this.configService.get<string>('CLOUDINARY_CLOUD_NAME');
-    const apiKey = this.configService.get<string>('CLOUDINARY_API_KEY');
-    const apiSecret = this.configService.get<string>('CLOUDINARY_API_SECRET');
+    const cloudName = this.configService
+      .get<string>('CLOUDINARY_CLOUD_NAME')
+      ?.trim();
+    const apiKey = this.configService.get<string>('CLOUDINARY_API_KEY')?.trim();
+    const apiSecret = this.configService
+      .get<string>('CLOUDINARY_API_SECRET')
+      ?.trim();
 
     if (!cloudName || !apiKey || !apiSecret) {
       throw new InternalServerErrorException('Cloudinary is not configured');

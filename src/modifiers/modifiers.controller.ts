@@ -1,5 +1,22 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Req } from '@nestjs/common';
-import { ApiBody, ApiCookieAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Req,
+} from '@nestjs/common';
+import {
+  ApiBody,
+  ApiCookieAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
 import { CreateModifierGroupDto } from './dto/create-modifier.dto';
 import { UpdateModifierGroupDto } from './dto/update-modifier.dto';
@@ -19,7 +36,11 @@ export class ModifiersController {
     @Body() createDto: CreateModifierGroupDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.modifiersService.createGroup(restaurantId, createDto, request.user.id);
+    return this.modifiersService.createGroup(
+      restaurantId,
+      createDto,
+      request.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Get all modifier groups for restaurant' })
@@ -41,7 +62,12 @@ export class ModifiersController {
     @Body() updateDto: UpdateModifierGroupDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.modifiersService.updateGroup(restaurantId, groupId, updateDto, request.user.id);
+    return this.modifiersService.updateGroup(
+      restaurantId,
+      groupId,
+      updateDto,
+      request.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Delete modifier group' })
@@ -52,7 +78,11 @@ export class ModifiersController {
     @Param('groupId') groupId: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.modifiersService.deleteGroup(restaurantId, groupId, request.user.id);
+    return this.modifiersService.deleteGroup(
+      restaurantId,
+      groupId,
+      request.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Attach modifier group to dish' })
@@ -64,7 +94,12 @@ export class ModifiersController {
     @Body() attachDto: AttachModifierDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.modifiersService.attachToDish(restaurantId, dishId, attachDto.modifierGroupId, request.user.id);
+    return this.modifiersService.attachToDish(
+      restaurantId,
+      dishId,
+      attachDto.modifierGroupId,
+      request.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Detach modifier group from dish' })
@@ -76,6 +111,11 @@ export class ModifiersController {
     @Param('modifierGroupId') modifierGroupId: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.modifiersService.detachFromDish(restaurantId, dishId, modifierGroupId, request.user.id);
+    return this.modifiersService.detachFromDish(
+      restaurantId,
+      dishId,
+      modifierGroupId,
+      request.user.id,
+    );
   }
 }

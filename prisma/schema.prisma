@@ -163,6 +163,7 @@ model Staff {
   restaurantId Int
   firstName    String
   lastName     String?
+  photo        String?
   email        String
   phone        String?
   role         String

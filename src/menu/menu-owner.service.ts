@@ -18,7 +18,7 @@ export class MenuOwnerService {
             variants: true,
             ingredients: true,
             modifiers: {
-              select: { modifierGroupId: true }
+              select: { modifierGroupId: true },
             },
             upsellTo: {
               select: { upsellDishId: true },
@@ -45,7 +45,9 @@ export class MenuOwnerService {
   }
 
   async createDish(categoryId: string, dto: CreateDishDto) {
-    const category = await this.prisma.category.findUnique({ where: { id: categoryId } });
+    const category = await this.prisma.category.findUnique({
+      where: { id: categoryId },
+    });
     if (!category) throw new NotFoundException('Category not found');
 
     const dishCount = await this.prisma.dish.count({ where: { categoryId } });
@@ -120,7 +122,9 @@ export class MenuOwnerService {
   }
 
   async updateDish(dishId: string, dto: CreateDishDto) {
-    const existingDish = await this.prisma.dish.findUnique({ where: { id: dishId } });
+    const existingDish = await this.prisma.dish.findUnique({
+      where: { id: dishId },
+    });
     if (!existingDish) throw new NotFoundException('Dish not found');
 
     return this.prisma.$transaction(async (tx) => {

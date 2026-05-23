@@ -12,7 +12,7 @@ import { CombosService } from './combos.service';
 })
 export class CombosModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // Передаємо клас контролера — це автоматично застосує Middleware 
+    // Передаємо клас контролера — це автоматично застосує Middleware
     // до всіх його ендпоінтів та унеможливить помилки парсингу шляхів
     consumer.apply(SessionAuthMiddleware).forRoutes(CombosController);
   }
