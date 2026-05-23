@@ -16,6 +16,9 @@ export class CloudinaryService {
   constructor(private readonly configService: ConfigService) {}
 
   async uploadImage(fileBuffer: Buffer, folder: string) {
+    const cloudinaryUrl = this.configService
+      .get<string>('CLOUDINARY_URL')
+      ?.trim();
     const cloudName = this.configService
       .get<string>('CLOUDINARY_CLOUD_NAME')
       ?.trim();
@@ -24,15 +27,17 @@ export class CloudinaryService {
       .get<string>('CLOUDINARY_API_SECRET')
       ?.trim();
 
-    if (!cloudName || !apiKey || !apiSecret) {
+    if (cloudinaryUrl) {
+      cloudinary.config(cloudinaryUrl);
+    } else if (cloudName && apiKey && apiSecret) {
+      cloudinary.config({
+        cloud_name: cloudName,
+        api_key: apiKey,
+        api_secret: apiSecret,
+      });
+    } else {
       throw new InternalServerErrorException('Cloudinary is not configured');
     }
-
-    cloudinary.config({
-      cloud_name: cloudName,
-      api_key: apiKey,
-      api_secret: apiSecret,
-    });
 
     return new Promise<UploadApiResponse>((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
@@ -45,7 +50,13 @@ export class CloudinaryService {
           result: UploadApiResponse | undefined,
         ) => {
           if (error || !result) {
-            reject(new BadGatewayException('Failed to upload image'));
+            const detail =
+              error?.message ||
+              error?.http_code?.toString() ||
+              'unknown Cloudinary error';
+            reject(
+              new BadGatewayException(`Failed to upload image: ${detail}`),
+            );
             return;
           }
 
