@@ -58,6 +58,7 @@ export class DishesController {
     @Body() createDishDto: CreateDishDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    // ВИПРАВЛЕНО: Сервіс викликається з 3 правильними аргументами
     return this.dishesService.createDish(categoryId, createDishDto, request.user.id);
   }
 
@@ -84,6 +85,7 @@ export class DishesController {
     @Body() updateDishDto: UpdateDishDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    // ВИПРАВЛЕНО: Сервіс викликається з 3 правильними аргументами
     return this.dishesService.updateDish(dishId, updateDishDto, request.user.id);
   }
 

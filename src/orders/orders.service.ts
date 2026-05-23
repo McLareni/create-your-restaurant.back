@@ -52,9 +52,8 @@ export class OrdersService {
       },
       select: {
         id: true,
-        name: true,
         price: true,
-        modifierRelation: {
+        modifiers: {
           select: {
             modifierGroupId: true,
           },
@@ -91,7 +90,7 @@ export class OrdersService {
       }
 
       const allowedGroupIds = new Set(
-        dish.modifierRelation.map((modifier) => modifier.modifierGroupId),
+        dish.modifiers.map((modifier) => modifier.modifierGroupId),
       );
 
       const modifiersPayload = (item.modifiers ?? []).map((modifier) => {
@@ -112,34 +111,29 @@ export class OrdersService {
         const modifierQuantity = modifier.quantity ?? 1;
 
         return {
-          name: modifierOption.name,
-          price: modifierOption.price,
+          modifierOptionId: modifierOption.id,
           quantity: modifierQuantity,
+          unitPrice: modifierOption.price,
         };
       });
 
       const modifiersUnitPrice = modifiersPayload.reduce(
-        (sum, modifier) => sum + modifier.price * modifier.quantity,
+        (sum, modifier) => sum + modifier.unitPrice * modifier.quantity,
         0,
       );
 
-      const modifierNames = modifiersPayload
-        .map((m) => `${m.name} (x${m.quantity})`)
-        .join(', ');
-      const itemName = modifierNames
-        ? `${dish.name} [${modifierNames}]`
-        : dish.name;
-
       return {
         dishId: item.dishId,
-        name: itemName,
         quantity: item.quantity,
-        price: dish.price + modifiersUnitPrice,
+        unitPrice: dish.price + modifiersUnitPrice,
+        modifiers: {
+          create: modifiersPayload,
+        },
       };
     });
 
     const totalAmount = itemsToCreate.reduce(
-      (sum, item) => sum + item.price * item.quantity,
+      (sum, item) => sum + item.unitPrice * item.quantity,
       0,
     );
 
@@ -161,7 +155,26 @@ export class OrdersService {
             type: true,
           },
         },
-        items: true,
+        items: {
+          include: {
+            dish: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            modifiers: {
+              include: {
+                modifierOption: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -188,7 +201,26 @@ export class OrdersService {
             type: true,
           },
         },
-        items: true,
+        items: {
+          include: {
+            dish: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            modifiers: {
+              include: {
+                modifierOption: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -211,7 +243,26 @@ export class OrdersService {
             type: true,
           },
         },
-        items: true,
+        items: {
+          include: {
+            dish: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            modifiers: {
+              include: {
+                modifierOption: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -240,7 +291,7 @@ export class OrdersService {
 
     const updatedOrder = await this.prismaService.order.update({
       where: { id: orderId },
-      data: updateOrderDto as any,
+      data: updateOrderDto,
       include: {
         table: {
           select: {
@@ -249,7 +300,26 @@ export class OrdersService {
             type: true,
           },
         },
-        items: true,
+        items: {
+          include: {
+            dish: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            modifiers: {
+              include: {
+                modifierOption: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -331,11 +401,11 @@ export class OrdersService {
       return new Map<string, ModifierOptionLookup>();
     }
 
-    const modifierOptions = await this.prismaService.fontModifierOption.findMany({
+    const modifierOptions = await this.prismaService.modifierOption.findMany({
       where: {
         id: { in: modifierOptionIds },
         isAvailable: true,
-        modifierGroup: {
+        group: {
           restaurantId,
         },
       },
@@ -356,25 +426,58 @@ export class OrdersService {
     return new Map(modifierOptions.map((option) => [option.id, option]));
   }
 
-  private mapOrder(order: any) {
+  private mapOrder(order: {
+    id: string;
+    restaurantId: number;
+    tableId: string | null;
+    type: OrderType;
+    status: OrderStatus;
+    totalAmount: number;
+    createdAt: Date;
+    updatedAt: Date;
+    table: {
+      id: string;
+      number: number;
+      type: string;
+    } | null;
+    items: Array<{
+      id: string;
+      dishId: string;
+      quantity: number;
+      unitPrice: number;
+      dish: {
+        id: string;
+        name: string;
+      };
+      modifiers: Array<{
+        id: string;
+        modifierOptionId: string;
+        quantity: number;
+        unitPrice: number;
+        modifierOption: {
+          id: string;
+          name: string;
+        };
+      }>;
+    }>;
+  }) {
     return {
-      id: order.id,
-      restaurantId: order.restaurantId,
-      tableId: order.tableId,
-      type: order.type,
-      status: order.status,
-      totalAmount: order.totalAmount,
-      createdAt: order.createdAt,
-      updatedAt: order.updatedAt,
-      table: order.table,
-      items: (order.items || []).map((item: any) => ({
+      ...order,
+      items: order.items.map((item) => ({
         id: item.id,
         dishId: item.dishId,
-        dishName: item.name,
+        dishName: item.dish.name,
         quantity: item.quantity,
-        unitPrice: item.price,
-        lineTotal: item.quantity * item.price,
-        modifiers: [],
+        unitPrice: item.unitPrice,
+        lineTotal: item.quantity * item.unitPrice,
+        modifiers: item.modifiers.map((modifier) => ({
+          id: modifier.id,
+          modifierOptionId: modifier.modifierOptionId,
+          modifierName: modifier.modifierOption.name,
+          quantity: modifier.quantity,
+          unitPrice: modifier.unitPrice,
+          lineTotal: modifier.quantity * modifier.unitPrice,
+        })),
       })),
     };
   }
