@@ -31,6 +31,43 @@ import { OrdersService } from './orders.service';
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
+  @ApiOperation({
+    summary: 'Create public dine-in order by table QR',
+    description:
+      'Public endpoint for guest orders from customer menu. Requires valid active tableId.',
+  })
+  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
+  @ApiBody({
+    type: CreateOrderDto,
+    schema: {
+      example: {
+        type: 'DINE_IN',
+        tableId: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
+        items: [
+          {
+            dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
+            quantity: 2,
+          },
+        ],
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Public order created successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid order payload or inactive table',
+  })
+  @Post('public')
+  createPublicOrder(
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @Body() createOrderDto: CreateOrderDto,
+  ) {
+    return this.ordersService.createPublicOrder(restaurantId, createOrderDto);
+  }
+
   @ApiOperation({ summary: 'Create order' })
   @ApiCookieAuth('gustio_session')
   @ApiParam({ name: 'restaurantId', type: Number, example: 1 })

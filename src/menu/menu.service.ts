@@ -107,6 +107,69 @@ export class MenuService {
       throw new NotFoundException('Restaurant not found');
     }
 
+    return this.mapPublicMenuResponse(restaurant);
+  }
+
+  async getMenuBySlug(slug: string) {
+    const restaurant = await this.prismaService.restaurant.findUnique({
+      where: { slug },
+      include: {
+        categories: {
+          where: {
+            dishes: {
+              some: { isAvailable: true },
+            },
+          },
+          orderBy: { sortOrder: 'asc' },
+          include: {
+            dishes: {
+              where: { isAvailable: true },
+              orderBy: { sortOrder: 'asc' },
+              include: {
+                images: {
+                  include: {
+                    image: {
+                      select: {
+                        id: true,
+                        url: true,
+                      },
+                    },
+                  },
+                },
+                variants: true,
+                ingredients: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant not found');
+    }
+
+    return this.mapPublicMenuResponse(restaurant);
+  }
+
+  private mapPublicMenuResponse(restaurant: {
+    id: number;
+    categories: Array<{
+      id: string;
+      restaurantId: number;
+      name: string;
+      sortOrder: number;
+      dishes: Array<Record<string, unknown> & {
+        images: Array<{
+          image: {
+            id: string;
+            url: string;
+          };
+        }>;
+      }>;
+    }>;
+  }) {
+
     return {
       restaurantId: restaurant.id,
       categories: restaurant.categories.map((category) => ({

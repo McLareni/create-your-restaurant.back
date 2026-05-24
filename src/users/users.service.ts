@@ -163,6 +163,7 @@ export class UsersService {
         restaurants: restaurants.map((restaurant) => ({
           id: restaurant.id,
           name: restaurant.title,
+          slug: restaurant.slug,
         })),
       },
     };
