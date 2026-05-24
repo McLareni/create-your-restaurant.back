@@ -107,6 +107,7 @@ export class UsersService {
       message: `Login for ${email} successful`,
       session: {
         token: sessionToken,
+        expiresAt: sessionExpiresAt,
       },
     };
   }
