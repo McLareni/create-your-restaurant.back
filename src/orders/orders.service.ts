@@ -19,12 +19,35 @@ type ModifierOptionLookup = {
 export class OrdersService {
   constructor(private readonly prismaService: PrismaService) {}
 
+  async createPublicOrder(restaurantId: number, createOrderDto: CreateOrderDto) {
+    if (!createOrderDto.tableId) {
+      throw new BadRequestException('Table ID is required for public orders');
+    }
+
+    if (createOrderDto.type && createOrderDto.type !== OrderType.DINE_IN) {
+      throw new BadRequestException('Public orders support only DINE_IN type');
+    }
+
+    return this.createOrderInternal(restaurantId, {
+      ...createOrderDto,
+      type: OrderType.DINE_IN,
+    });
+  }
+
   async createOrder(
     restaurantId: number,
     createOrderDto: CreateOrderDto,
     userId: number,
   ) {
     await this.ensureRestaurantOwner(restaurantId, userId);
+
+    return this.createOrderInternal(restaurantId, createOrderDto);
+  }
+
+  private async createOrderInternal(
+    restaurantId: number,
+    createOrderDto: CreateOrderDto,
+  ) {
 
     const orderType = createOrderDto.type ?? OrderType.DINE_IN;
 
