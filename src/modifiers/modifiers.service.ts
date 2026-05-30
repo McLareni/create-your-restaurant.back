@@ -63,7 +63,7 @@ export class ModifiersService {
   ) {
     const group = await this.prismaService.modifierGroup.findFirst({
       where: { id: groupId, restaurantId, restaurant: { ownerId: userId } },
-      select: { id: true },
+      include: { options: true },
     });
 
     if (!group) throw new NotFoundException('Modifier group not found');
@@ -71,23 +71,44 @@ export class ModifiersService {
     const { options, ...groupData } = updateDto;
 
     const updatedGroup = await this.prismaService.$transaction(async (tx) => {
-      const g = await tx.modifierGroup.update({
+      await tx.modifierGroup.update({
         where: { id: groupId },
         data: groupData,
       });
 
       if (options) {
-        await tx.modifierOption.deleteMany({
-          where: { modifierGroupId: groupId },
-        });
-        await tx.modifierOption.createMany({
-          data: options.map((opt) => ({
+        const incomingNames = options.map((o) => o.name);
+
+        await tx.modifierOption.updateMany({
+          where: {
             modifierGroupId: groupId,
-            name: opt.name,
-            price: opt.price ?? 0,
-            isAvailable: opt.isAvailable ?? true,
-          })),
+            name: { notIn: incomingNames },
+          },
+          data: { isAvailable: false },
         });
+
+        for (const opt of options) {
+          const existingOption = group.options.find((o) => o.name === opt.name);
+
+          if (existingOption) {
+            await tx.modifierOption.update({
+              where: { id: existingOption.id },
+              data: {
+                price: opt.price ?? 0,
+                isAvailable: opt.isAvailable ?? true,
+              },
+            });
+          } else {
+            await tx.modifierOption.create({
+              data: {
+                modifierGroupId: groupId,
+                name: opt.name,
+                price: opt.price ?? 0,
+                isAvailable: opt.isAvailable ?? true,
+              },
+            });
+          }
+        }
       }
 
       return tx.modifierGroup.findUnique({

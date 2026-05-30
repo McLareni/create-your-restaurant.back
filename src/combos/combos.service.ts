@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateComboDto } from './dto/create-combo.dto';
@@ -34,6 +35,20 @@ export class CombosService {
   async create(restaurantId: number, dto: CreateComboDto, userId: number) {
     await this.checkAccess(restaurantId, userId);
 
+    const dishIds = dto.dishes.map((d) => d.id);
+    const dbDishes = await this.prisma.dish.findMany({
+      where: {
+        id: { in: dishIds },
+        category: { restaurantId },
+      },
+    });
+
+    if (dbDishes.length !== new Set(dishIds).size) {
+      throw new BadRequestException('Some dishes are invalid or do not belong to this restaurant');
+    }
+
+    const dbDishMap = new Map(dbDishes.map((d) => [d.id, d]));
+
     return this.prisma.$transaction(async (tx) => {
       return tx.combo.create({
         data: {
@@ -42,11 +57,14 @@ export class CombosService {
           priceType: dto.priceType,
           priceValue: dto.priceValue,
           dishes: {
-            create: dto.dishes.map((d) => ({
-              dishId: d.id,
-              name: d.name,
-              price: d.price,
-            })),
+            create: dto.dishes.map((d) => {
+              const originalDish = dbDishMap.get(d.id)!;
+              return {
+                dishId: originalDish.id,
+                name: originalDish.name,
+                price: originalDish.price,
+              };
+            }),
           },
         },
         include: {
@@ -69,6 +87,22 @@ export class CombosService {
     });
     if (!combo) throw new NotFoundException('Combo pack not found');
 
+    let dbDishMap: Map<string, any> | null = null;
+    if (dto.dishes) {
+      const dishIds = dto.dishes.map((d) => d.id);
+      const dbDishes = await this.prisma.dish.findMany({
+        where: {
+          id: { in: dishIds },
+          category: { restaurantId },
+        },
+      });
+
+      if (dbDishes.length !== new Set(dishIds).size) {
+        throw new BadRequestException('Some dishes are invalid or do not belong to this restaurant');
+      }
+      dbDishMap = new Map(dbDishes.map((d) => [d.id, d]));
+    }
+
     return this.prisma.$transaction(async (tx) => {
       if (dto.dishes) {
         await tx.comboDish.deleteMany({ where: { comboId: id } });
@@ -80,15 +114,19 @@ export class CombosService {
           name: dto.name,
           priceType: dto.priceType,
           priceValue: dto.priceValue,
-          ...(dto.dishes && {
-            dishes: {
-              create: dto.dishes.map((d) => ({
-                dishId: d.id,
-                name: d.name,
-                price: d.price,
-              })),
-            },
-          }),
+          ...(dto.dishes &&
+            dbDishMap && {
+              dishes: {
+                create: dto.dishes.map((d) => {
+                  const originalDish = dbDishMap!.get(d.id)!;
+                  return {
+                    dishId: originalDish.id,
+                    name: originalDish.name,
+                    price: originalDish.price,
+                  };
+                }),
+              },
+            }),
         },
         include: {
           dishes: true,

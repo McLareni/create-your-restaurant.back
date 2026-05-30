@@ -7,13 +7,13 @@ datasource db {
 }
 
 model User {
-  id                 Int          @id @default(autoincrement())
-  email              String       @unique
+  id                 Int              @id @default(autoincrement())
+  email              String           @unique
   firstName          String?
   lastName           String?
   photo              String?
   role               EnumRole
-  createdAt          DateTime     @default(now())
+  createdAt          DateTime         @default(now())
   loginCodeExpiresAt DateTime?
   loginCodeHash      String?
   restaurants        Restaurant[]
@@ -32,22 +32,42 @@ model Session {
 }
 
 model Restaurant {
-  id             Int                @id @default(autoincrement())
-  title          String
-  slug           String             @unique
-  type           EnumTypeRestaurant
-  currency       EnumCurrency
-  phoneNumber    String?
-  city           String?
-  language       EnumLanguage
-  ownerId        Int
-  categories     Category[]
-  DiningTable    DiningTable[]
-  modifierGroups ModifierGroup[]
-  combos         Combo[]
-  owner          User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  staff          Staff[]
-  orders         Order[]
+  id                  Int                  @id @default(autoincrement())
+  title               String
+  slug                String               @unique
+  type                EnumTypeRestaurant
+  currency            EnumCurrency
+  phoneNumber         String?
+  city                String?
+  language            EnumLanguage
+  ownerId             Int
+  categories          Category[]
+  DiningTable         DiningTable[]
+  modifierGroups      ModifierGroup[]
+  combos              Combo[]
+  owner               User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  staff               Staff[]
+  orders              Order[]
+  dishTagLookups      DishTagLookup[]
+  dishAllergenLookups DishAllergenLookup[]
+}
+
+model DishTagLookup {
+  id           Int        @id @default(autoincrement())
+  restaurantId Int
+  name         String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, name])
+}
+
+model DishAllergenLookup {
+  id           Int        @id @default(autoincrement())
+  restaurantId Int
+  name         String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, name])
 }
 
 model Image {
@@ -80,9 +100,9 @@ model Dish {
   name          String
   description   String?
   price         Float
-  weight        Float?           
-  cookingTime   Int?             
-  calories      Int?             
+  weight        Float?
+  cookingTime   Int?
+  calories      Int?
   isVegan       Boolean          @default(false)
   isSpicy       Boolean          @default(false)
   isLactoseFree Boolean          @default(false)
@@ -97,14 +117,14 @@ model Dish {
   images        ImageDish[]
   ingredients   DishIngredient[]
   orderItems    OrderItem[]
-  variants      DishVariant[]    
+  variants      DishVariant[]
   comboDishes   ComboDish[]
 
-  upsellTo      DishUpsell[]     @relation("MainDishRelation")
-  upselledBy    DishUpsell[]     @relation("UpsellDishRelation")
+  upsellTo   DishUpsell[] @relation("MainDishRelation")
+  upselledBy DishUpsell[] @relation("UpsellDishRelation")
 
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model DishVariant {
@@ -188,14 +208,14 @@ model ModifierGroup {
 }
 
 model ModifierOption {
-  id              String        @id @default(uuid())
-  modifierGroupId String
-  name            String
-  price           Float         @default(0)
-  isAvailable     Boolean       @default(true)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  group           ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+  id                 String              @id @default(uuid())
+  modifierGroupId    String
+  name               String
+  price              Float               @default(0)
+  isAvailable        Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  group              ModifierGroup       @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
   orderItemModifiers OrderItemModifier[]
 }
 
@@ -223,17 +243,17 @@ model DiningTable {
 }
 
 model Order {
-  id          String       @id @default(uuid())
+  id           String      @id @default(uuid())
   restaurantId Int
-  tableId     String?
-  type        OrderType    @default(DINE_IN)
-  status      OrderStatus  @default(PENDING)
-  totalAmount Float
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  restaurant  Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  table       DiningTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
-  items       OrderItem[]
+  tableId      String?
+  type         OrderType   @default(DINE_IN)
+  status       OrderStatus @default(PENDING)
+  totalAmount  Float
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table        DiningTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  items        OrderItem[]
 
   @@index([restaurantId, status])
   @@index([tableId])

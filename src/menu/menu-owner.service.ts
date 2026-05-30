@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDishDto } from './dto/create-dish.dto';
 import { BadgeType } from '@prisma/client';
@@ -7,7 +7,23 @@ import { BadgeType } from '@prisma/client';
 export class MenuOwnerService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getFullMenu(restaurantId: number) {
+  private async verifyRestaurantOwner(restaurantId: number, userId: number) {
+    const restaurant = await this.prisma.restaurant.findFirst({
+      where: {
+        id: restaurantId,
+        ownerId: userId,
+      },
+      select: { id: true },
+    });
+
+    if (!restaurant) {
+      throw new ForbiddenException('Restaurant not found or access denied');
+    }
+  }
+
+  async getFullMenu(restaurantId: number, userId: number) {
+    await this.verifyRestaurantOwner(restaurantId, userId);
+
     const categories = await this.prisma.category.findMany({
       where: { restaurantId },
       orderBy: { sortOrder: 'asc' },
@@ -54,6 +70,70 @@ export class MenuOwnerService {
         }),
       })),
     };
+  }
+
+  async getTagsLookup(restaurantId: number, userId: number): Promise<string[]> {
+    await this.verifyRestaurantOwner(restaurantId, userId);
+    
+    const records = await this.prisma.dishTagLookup.findMany({
+      where: { restaurantId },
+      orderBy: { name: 'asc' },
+    });
+    return records.map(r => r.name);
+  }
+
+  async getAllergensLookup(restaurantId: number, userId: number): Promise<string[]> {
+    await this.verifyRestaurantOwner(restaurantId, userId);
+    
+    const records = await this.prisma.dishAllergenLookup.findMany({
+      where: { restaurantId },
+      orderBy: { name: 'asc' },
+    });
+    return records.map(r => r.name);
+  }
+
+  async createTagLookup(restaurantId: number, name: string, userId: number) {
+    await this.verifyRestaurantOwner(restaurantId, userId);
+    
+    const existing = await this.prisma.dishTagLookup.findFirst({
+      where: { restaurantId, name },
+    });
+    if (existing) return existing;
+
+    return this.prisma.dishTagLookup.create({
+      data: { restaurantId, name },
+    });
+  }
+
+  async createAllergenLookup(restaurantId: number, name: string, userId: number) {
+    await this.verifyRestaurantOwner(restaurantId, userId);
+    
+    const existing = await this.prisma.dishAllergenLookup.findFirst({
+      where: { restaurantId, name },
+    });
+    if (existing) return existing;
+
+    return this.prisma.dishAllergenLookup.create({
+      data: { restaurantId, name },
+    });
+  }
+
+  async deleteTagLookup(restaurantId: number, name: string, userId: number) {
+    await this.verifyRestaurantOwner(restaurantId, userId);
+    
+    await this.prisma.dishTagLookup.deleteMany({
+      where: { restaurantId, name },
+    });
+    return { success: true };
+  }
+
+  async deleteAllergenLookup(restaurantId: number, name: string, userId: number) {
+    await this.verifyRestaurantOwner(restaurantId, userId);
+    
+    await this.prisma.dishAllergenLookup.deleteMany({
+      where: { restaurantId, name },
+    });
+    return { success: true };
   }
 
   async createDish(categoryId: string, dto: CreateDishDto) {
