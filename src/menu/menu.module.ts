@@ -40,6 +40,15 @@ export class MenuModule implements NestModule {
     consumer.apply(SessionAuthMiddleware).forRoutes(
       { path: 'menu', method: RequestMethod.POST },
       { path: 'menu/owner/:restaurantId', method: RequestMethod.GET },
+      
+      // Захист ендпоінтів MenuOwnerController (Lookups з ресторанною ізоляцією)
+      { path: 'menu/owner/:restaurantId/dishes/lookups/tags', method: RequestMethod.GET },
+      { path: 'menu/owner/:restaurantId/dishes/lookups/tags', method: RequestMethod.POST },
+      { path: 'menu/owner/:restaurantId/dishes/lookups/tags/:name', method: RequestMethod.DELETE },
+      { path: 'menu/owner/:restaurantId/dishes/lookups/allergens', method: RequestMethod.GET },
+      { path: 'menu/owner/:restaurantId/dishes/lookups/allergens', method: RequestMethod.POST },
+      { path: 'menu/owner/:restaurantId/dishes/lookups/allergens/:name', method: RequestMethod.DELETE },
+
       { path: 'menu/owner/categories', method: RequestMethod.POST },
       { path: 'menu/owner/categories/reorder', method: RequestMethod.PATCH },
       {
@@ -62,11 +71,11 @@ export class MenuModule implements NestModule {
       {
         path: 'menu/owner/dishes/lookups/tags/:tagName',
         method: RequestMethod.DELETE,
-      }, // Захищаємо роут видалення тегів
+      },
       {
         path: 'menu/owner/dishes/lookups/allergens/:allergenName',
         method: RequestMethod.DELETE,
-      }, // Захищаємо роут видалення алергенів
+      },
       { path: 'menu/owner/dishes/reorder', method: RequestMethod.PATCH },
       { path: 'menu/owner/dishes/:dishId', method: RequestMethod.PATCH },
       { path: 'menu/owner/dishes/:dishId', method: RequestMethod.DELETE },
