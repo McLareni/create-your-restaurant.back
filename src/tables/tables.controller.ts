@@ -70,4 +70,12 @@ export class TablesController {
   ) {
     return this.tablesService.deleteZone(id);
   }
+
+  @Get(':id/exists')
+  checkTableExists(
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @Param('id') id: string,
+  ) {
+    return this.tablesService.checkPublicTableExists(restaurantId, id);
+  }
 }

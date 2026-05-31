@@ -1,5 +1,10 @@
 // src/tables/tables.service.ts
-import { Injectable, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTableDto } from './dto/create-table.dto';
 import { UpdateTableDto } from './dto/update-table.dto';
@@ -53,7 +58,12 @@ export class TablesService {
     });
   }
 
-  async update(restaurantId: number, id: string, dto: UpdateTableDto, userId: number) {
+  async update(
+    restaurantId: number,
+    id: string,
+    dto: UpdateTableDto,
+    userId: number,
+  ) {
     await this.checkAccess(restaurantId, userId);
 
     const table = await this.prismaService.diningTable.findUnique({
@@ -142,5 +152,18 @@ export class TablesService {
     return this.prismaService.zone.delete({
       where: { id },
     });
+  }
+
+  async checkPublicTableExists(restaurantId: number, id: string) {
+    const table = await this.prismaService.diningTable.findFirst({
+      where: {
+        id,
+        restaurantId,
+        status: 'ACTIVE',
+      },
+      select: { id: true },
+    });
+
+    return { exists: Boolean(table) };
   }
 }
