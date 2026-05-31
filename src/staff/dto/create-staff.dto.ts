@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 
 export class CreateStaffDto {
@@ -31,10 +32,10 @@ export class CreateStaffDto {
   @MaxLength(30)
   phone?: string;
 
-  @ApiProperty({ example: 'WAITER' })
+  @ApiProperty({ example: 'Офіціант' })
   @IsString()
   @IsNotEmpty()
-  @MaxLength(50)
+  @MaxLength(100)
   role!: string;
 
   @ApiPropertyOptional({ example: true })
@@ -46,4 +47,11 @@ export class CreateStaffDto {
   @IsString()
   @MaxLength(255)
   photo?: string;
+
+  @ApiPropertyOptional({ example: '123456' })
+  @IsOptional()
+  @IsString()
+  @MinLength(4)
+  @MaxLength(100)
+  password?: string;
 }

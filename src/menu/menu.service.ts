@@ -73,15 +73,9 @@ export class MenuService {
       where: { id: restaurantId },
       include: {
         categories: {
-          where: {
-            dishes: {
-              some: { isAvailable: true },
-            },
-          },
           orderBy: { sortOrder: 'asc' },
           include: {
             dishes: {
-              where: { isAvailable: true },
               orderBy: { sortOrder: 'asc' },
               include: {
                 images: {
@@ -115,15 +109,9 @@ export class MenuService {
       where: { slug },
       include: {
         categories: {
-          where: {
-            dishes: {
-              some: { isAvailable: true },
-            },
-          },
           orderBy: { sortOrder: 'asc' },
           include: {
             dishes: {
-              where: { isAvailable: true },
               orderBy: { sortOrder: 'asc' },
               include: {
                 images: {
@@ -169,7 +157,6 @@ export class MenuService {
       }>;
     }>;
   }) {
-
     return {
       restaurantId: restaurant.id,
       categories: restaurant.categories.map((category) => ({

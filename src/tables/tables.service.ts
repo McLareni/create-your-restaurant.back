@@ -1,21 +1,16 @@
-import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-  ConflictException,
-} from '@nestjs/common';
+// src/tables/tables.service.ts
+import { Injectable, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, TableStatus } from '@prisma/client';
-import { randomUUID } from 'crypto';
 import { CreateTableDto } from './dto/create-table.dto';
 import { UpdateTableDto } from './dto/update-table.dto';
+import { CreateZoneDto } from './dto/zone.dto';
 
 @Injectable()
 export class TablesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prismaService: PrismaService) {}
 
   private async checkAccess(restaurantId: number, userId: number) {
-    const restaurant = await this.prisma.restaurant.findFirst({
+    const restaurant = await this.prismaService.restaurant.findFirst({
       where: { id: restaurantId, ownerId: userId },
     });
     if (!restaurant) {
@@ -23,139 +18,129 @@ export class TablesService {
     }
   }
 
-  async getAll(restaurantId: number, userId: number) {
+  async findAll(restaurantId: number, userId: number) {
     await this.checkAccess(restaurantId, userId);
-
-    const dbTables = await this.prisma.diningTable.findMany({
+    return this.prismaService.diningTable.findMany({
       where: { restaurantId },
+      include: { zone: true },
       orderBy: { number: 'asc' },
     });
-
-    return dbTables.map((table) => ({
-      ...table,
-      canAcceptOrders: table.status === TableStatus.ACTIVE,
-    }));
-  }
-  async getTables(restaurantId: number, userId: number) {
-    return this.getAll(restaurantId, userId);
-  }
-
-  async checkTableExists(restaurantId: number, tableId: string) {
-    const table = await this.prisma.diningTable.findFirst({
-      where: { id: tableId, restaurantId },
-      select: { id: true },
-    });
-
-    return { exists: Boolean(table) };
   }
 
   async create(restaurantId: number, dto: CreateTableDto, userId: number) {
     await this.checkAccess(restaurantId, userId);
 
-    try {
-      const created = await this.prisma.diningTable.create({
-        data: {
-          id: randomUUID(),
+    const exists = await this.prismaService.diningTable.findFirst({
+      where: {
+        number: Number(dto.number),
+        restaurantId,
+      },
+    });
+
+    if (exists) {
+      throw new ConflictException('Table with this number already exists');
+    }
+
+    return this.prismaService.diningTable.create({
+      data: {
+        number: Number(dto.number),
+        type: dto.type,
+        status: dto.status || 'INACTIVE',
+        restaurantId,
+        zoneId: dto.zoneId || null,
+      },
+      include: { zone: true },
+    });
+  }
+
+  async update(restaurantId: number, id: string, dto: UpdateTableDto, userId: number) {
+    await this.checkAccess(restaurantId, userId);
+
+    const table = await this.prismaService.diningTable.findUnique({
+      where: { id },
+    });
+
+    if (!table || table.restaurantId !== restaurantId) {
+      throw new NotFoundException('Table not found');
+    }
+
+    if (dto.number !== undefined) {
+      const targetNumber = Number(dto.number);
+      if (targetNumber !== table.number) {
+        const exists = await this.prismaService.diningTable.findFirst({
+          where: { number: targetNumber, restaurantId },
+        });
+        if (exists) {
+          throw new ConflictException('Table with this number already exists');
+        }
+      }
+    }
+
+    return this.prismaService.diningTable.update({
+      where: { id },
+      data: {
+        ...(dto.number !== undefined && { number: Number(dto.number) }),
+        ...(dto.type !== undefined && { type: dto.type }),
+        ...(dto.status !== undefined && { status: dto.status }),
+        ...(dto.zoneId !== undefined && { zoneId: dto.zoneId }),
+      },
+      include: { zone: true },
+    });
+  }
+
+  async delete(restaurantId: number, id: string, userId: number) {
+    await this.checkAccess(restaurantId, userId);
+
+    const table = await this.prismaService.diningTable.findUnique({
+      where: { id },
+    });
+
+    if (!table || table.restaurantId !== restaurantId) {
+      throw new NotFoundException('Table not found');
+    }
+
+    await this.prismaService.diningTable.delete({
+      where: { id },
+    });
+
+    return { success: true };
+  }
+
+  async findAllZones(restaurantId: number, userId: number) {
+    await this.checkAccess(restaurantId, userId);
+    return this.prismaService.zone.findMany({
+      where: { restaurantId },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async createZone(restaurantId: number, dto: CreateZoneDto, userId: number) {
+    await this.checkAccess(restaurantId, userId);
+
+    const exists = await this.prismaService.zone.findUnique({
+      where: {
+        name_restaurantId: {
+          name: dto.name,
           restaurantId,
-          number: dto.number,
-          status: dto.status ?? TableStatus.ACTIVE,
-          type: dto.type,
         },
-      });
-
-      return {
-        message: 'Table created successfully',
-        table: {
-          ...created,
-          canAcceptOrders: created.status === TableStatus.ACTIVE,
-        },
-      };
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'Table number already exists for this restaurant',
-        );
-      }
-      throw error;
-    }
-  }
-
-  async createTable(restaurantId: number, dto: CreateTableDto, userId: number) {
-    return this.create(restaurantId, dto, userId);
-  }
-
-  async update(
-    restaurantId: number,
-    tableId: string,
-    dto: UpdateTableDto,
-    userId: number,
-  ) {
-    await this.checkAccess(restaurantId, userId);
-
-    const existing = await this.prisma.diningTable.findFirst({
-      where: { id: tableId, restaurantId },
-      select: { id: true },
+      },
     });
 
-    if (!existing) {
-      throw new NotFoundException('Table not found');
+    if (exists) {
+      throw new ConflictException('Zone with this name already exists');
     }
 
-    try {
-      const updated = await this.prisma.diningTable.update({
-        where: { id: tableId },
-        data: dto,
-      });
-
-      return {
-        message: 'Table updated successfully',
-        table: {
-          ...updated,
-          canAcceptOrders: updated.status === TableStatus.ACTIVE,
-        },
-      };
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'Table number already exists for this restaurant',
-        );
-      }
-      throw error;
-    }
-  }
-
-  async updateTable(
-    restaurantId: number,
-    tableId: string,
-    dto: UpdateTableDto,
-    userId: number,
-  ) {
-    return this.update(restaurantId, tableId, dto, userId);
-  }
-
-  async delete(restaurantId: number, tableId: string, userId: number) {
-    await this.checkAccess(restaurantId, userId);
-
-    const existing = await this.prisma.diningTable.findFirst({
-      where: { id: tableId, restaurantId },
-      select: { id: true },
+    return this.prismaService.zone.create({
+      data: {
+        name: dto.name,
+        restaurantId,
+      },
     });
-
-    if (!existing) {
-      throw new NotFoundException('Table not found');
-    }
-
-    await this.prisma.diningTable.delete({ where: { id: tableId } });
-    return { message: 'Table deleted successfully' };
   }
 
-  async deleteTable(restaurantId: number, tableId: string, userId: number) {
-    return this.delete(restaurantId, tableId, userId);
+  async deleteZone(id: string) {
+    return this.prismaService.zone.delete({
+      where: { id },
+    });
   }
 }

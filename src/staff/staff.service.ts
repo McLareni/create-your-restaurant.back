@@ -3,10 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { hash } from 'bcrypt';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
+import { CreateStaffRoleDto } from './dto/create-staff-role.dto';
 
 type UploadedStaffImage = {
   buffer: Buffer;
@@ -21,6 +23,80 @@ export class StaffService {
     private readonly prismaService: PrismaService,
     private readonly cloudinaryService: CloudinaryService,
   ) {}
+
+  async createStaffRole(restaurantId: number, createStaffRoleDto: CreateStaffRoleDto, userId: number) {
+    const restaurant = await this.prismaService.restaurant.findFirst({
+      where: { id: restaurantId, ownerId: userId },
+      select: { id: true },
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant not found');
+    }
+
+    const roleName = createStaffRoleDto.name.trim();
+
+    const existingRole = await this.prismaService.staffRole.findUnique({
+      where: {
+        restaurantId_name: { restaurantId, name: roleName },
+      },
+    });
+
+    if (existingRole) {
+      throw new BadRequestException('Role already exists in this restaurant');
+    }
+
+    return this.prismaService.staffRole.create({
+      data: {
+        restaurantId,
+        name: roleName,
+      },
+    });
+  }
+
+  async getStaffRoles(restaurantId: number, userId: number) {
+    const restaurant = await this.prismaService.restaurant.findFirst({
+      where: { id: restaurantId, ownerId: userId },
+      select: { id: true },
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant not found');
+    }
+
+    return this.prismaService.staffRole.findMany({
+      where: { restaurantId },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async deleteStaffRole(restaurantId: number, roleId: string, userId: number) {
+    const role = await this.prismaService.staffRole.findFirst({
+      where: {
+        id: roleId,
+        restaurantId,
+        restaurant: { ownerId: userId },
+      },
+    });
+
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+
+    const isRoleUsed = await this.prismaService.staff.findFirst({
+      where: { restaurantId, role: role.name },
+    });
+
+    if (isRoleUsed) {
+      throw new BadRequestException('Cannot delete role because it is assigned to staff members');
+    }
+
+    await this.prismaService.staffRole.delete({
+      where: { id: roleId },
+    });
+
+    return { message: 'Role deleted successfully' };
+  }
 
   async createStaff(
     restaurantId: number,
@@ -39,6 +115,16 @@ export class StaffService {
       throw new NotFoundException('Restaurant not found');
     }
 
+    const roleExists = await this.prismaService.staffRole.findFirst({
+      where: { restaurantId, name: createStaffDto.role },
+    });
+
+    if (!roleExists) {
+      throw new BadRequestException('The assigned role does not exist in this restaurant');
+    }
+
+    const passwordHash = createStaffDto.password ? await hash(createStaffDto.password, 10) : null;
+
     const staff = await this.prismaService.staff.create({
       data: {
         restaurantId,
@@ -49,6 +135,7 @@ export class StaffService {
         role: createStaffDto.role,
         isActive: createStaffDto.isActive ?? true,
         photo: createStaffDto.photo,
+        password: passwordHash,
       },
     });
 
@@ -71,12 +158,10 @@ export class StaffService {
       throw new NotFoundException('Restaurant not found');
     }
 
-    const staff = await this.prismaService.staff.findMany({
+    return this.prismaService.staff.findMany({
       where: { restaurantId },
       orderBy: { createdAt: 'asc' },
     });
-
-    return staff;
   }
 
   async updateStaff(
@@ -100,8 +185,19 @@ export class StaffService {
       throw new NotFoundException('Staff member not found');
     }
 
-    const { firstName, lastName, email, phone, role, isActive } =
+    const { firstName, lastName, email, phone, role, isActive, password } =
       updateStaffDto;
+
+    if (role !== undefined) {
+      const roleExists = await this.prismaService.staffRole.findFirst({
+        where: { restaurantId, name: role },
+      });
+      if (!roleExists) {
+        throw new BadRequestException('The assigned role does not exist in this restaurant');
+      }
+    }
+
+    const passwordHash = password ? await hash(password, 10) : undefined;
 
     const updatedStaff = await this.prismaService.staff.update({
       where: { id: staffId },
@@ -112,6 +208,7 @@ export class StaffService {
         ...(phone !== undefined && { phone }),
         ...(role !== undefined && { role }),
         ...(isActive !== undefined && { isActive }),
+        ...(passwordHash !== undefined && { password: passwordHash }),
       },
     });
 
