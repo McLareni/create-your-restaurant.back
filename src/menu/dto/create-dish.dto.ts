@@ -30,6 +30,7 @@ class DishVariantDto {
 class IngredientItemDto {
   @IsString()
   name!: string;
+  inventoryItemId?: string;
 
   @IsNumber()
   @Min(0)

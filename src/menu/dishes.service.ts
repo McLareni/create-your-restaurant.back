@@ -165,15 +165,16 @@ export class DishesService {
       }
 
       if (ingredients && ingredients.length > 0) {
-        await tx.dishIngredient.createMany({
-          data: ingredients.map((i) => ({
-            dishId: dish.id,
-            name: i.name,
-            quantity: i.quantity,
-            unit: i.unit,
-          })),
-        });
-      }
+  await tx.dishIngredient.createMany({
+    data: ingredients.map((i) => ({
+      dishId: dish.id,
+      name: i.name,
+      quantity: i.quantity,
+      unit: i.unit,
+      inventoryItemId: i.inventoryItemId || null, // <--- ЗАПИСУЄМО ЗВ'ЯЗОК З СКЛАДОМ
+    })),
+  });
+}
 
       if (modifierIds && modifierIds.length > 0) {
         await tx.dishModifier.createMany({

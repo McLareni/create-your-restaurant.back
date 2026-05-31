@@ -47,9 +47,49 @@ model Restaurant {
   combos              Combo[]
   owner               User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   staff               Staff[]
+  staffRoles          StaffRole[]
   orders              Order[]
   dishTagLookups      DishTagLookup[]
   dishAllergenLookups DishAllergenLookup[]
+  inventoryItems      InventoryItem[]
+  zones               Zone[]
+}
+
+model Zone {
+  id           String        @id @default(uuid())
+  name         String
+  restaurantId Int
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  diningTables DiningTable[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([name, restaurantId])
+}
+
+model InventoryItem {
+  id           String           @id @default(uuid())
+  restaurantId Int
+  name         String
+  stock        Float            @default(0)
+  unit         String
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  ingredients  DishIngredient[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([restaurantId, name])
+}
+
+model DishIngredient {
+  id              String         @id @default(uuid())
+  dishId          String
+  inventoryItemId String?
+  name            String
+  quantity        Float
+  unit            String
+  dish            Dish           @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
 }
 
 model DishTagLookup {
@@ -138,15 +178,6 @@ model DishVariant {
   dish      Dish     @relation(fields: [dishId], references: [id], onDelete: Cascade)
 }
 
-model DishIngredient {
-  id       String @id @default(uuid())
-  dishId   String
-  name     String
-  quantity Float
-  unit     String
-  dish     Dish   @relation(fields: [dishId], references: [id], onDelete: Cascade)
-}
-
 model DishUpsell {
   mainDishId   String
   upsellDishId String
@@ -187,10 +218,21 @@ model Staff {
   email        String
   phone        String?
   role         String
+  password     String?
   isActive     Boolean    @default(true)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+}
+
+model StaffRole {
+  id           String     @id @default(uuid())
+  restaurantId Int
+  name         String
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, name])
 }
 
 model ModifierGroup {
@@ -229,17 +271,19 @@ model DishModifier {
 }
 
 model DiningTable {
-  id           String      @id
-  restaurantId Int
+  id           String      @id @default(uuid())
   number       Int
-  status       TableStatus @default(ACTIVE)
   type         String
+  status       TableStatus @default(INACTIVE)
+  restaurantId Int
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  zoneId       String?
+  zone         Zone?       @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  orders       Order[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
-  Restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  orders       Order[]
 
-  @@unique([restaurantId, number])
+  @@unique([number, restaurantId])
 }
 
 model Order {
