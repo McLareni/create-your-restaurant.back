@@ -142,23 +142,27 @@ export class MenuService {
 
   private mapPublicMenuResponse(restaurant: {
     id: number;
+    title: string;
     categories: Array<{
       id: string;
       restaurantId: number;
       name: string;
       sortOrder: number;
-      dishes: Array<Record<string, unknown> & {
-        images: Array<{
-          image: {
-            id: string;
-            url: string;
-          };
-        }>;
-      }>;
+      dishes: Array<
+        Record<string, unknown> & {
+          images: Array<{
+            image: {
+              id: string;
+              url: string;
+            };
+          }>;
+        }
+      >;
     }>;
   }) {
     return {
       restaurantId: restaurant.id,
+      restaurantName: restaurant.title,
       categories: restaurant.categories.map((category) => ({
         ...category,
         dishes: category.dishes.map((dish) => this.mapDishImages(dish)),
