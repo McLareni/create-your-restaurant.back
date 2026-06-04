@@ -12,6 +12,7 @@ import { CombosModule } from './combos/combos.module';
 import { TablesModule } from './tables/tables.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { LiveMonitorModule } from './live-monitor/live-monitor.module';
+import { OrdersModule } from './orders/orders.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { LiveMonitorModule } from './live-monitor/live-monitor.module';
     TablesModule,
     InventoryModule,
     LiveMonitorModule,
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
