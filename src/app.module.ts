@@ -14,6 +14,8 @@ import { InventoryModule } from './inventory/inventory.module';
 import { PosModule } from './pos/pos.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { LiveCallsModule } from './live-calls/live-calls.module';
+import { LiveMonitorModule } from './live-monitor/live-monitor.module';
+import { OrdersModule } from './orders/orders.module';
 
 @Module({
   imports: [
@@ -29,6 +31,8 @@ import { LiveCallsModule } from './live-calls/live-calls.module';
     PosModule,
     AnalyticsModule,
     LiveCallsModule,
+    LiveMonitorModule,
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
