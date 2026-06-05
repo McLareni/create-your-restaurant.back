@@ -4,6 +4,7 @@ import {
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
+import { LiveMonitorModule } from '../live-monitor/live-monitor.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { SessionAuthMiddleware } from '../restaurants/middleware/session-auth.middleware';
 import { UsersModule } from '../users/users.module';
@@ -11,7 +12,7 @@ import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 
 @Module({
-  imports: [UsersModule],
+  imports: [UsersModule, LiveMonitorModule],
   controllers: [OrdersController],
   providers: [
     OrdersService,
