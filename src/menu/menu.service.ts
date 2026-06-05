@@ -45,8 +45,9 @@ export class MenuService {
                     },
                   },
                 },
-                variants: true,
                 ingredients: true,
+                allergens: true,
+                tags: true,
                 modifiers: true,
               },
             },
@@ -88,8 +89,9 @@ export class MenuService {
                     },
                   },
                 },
-                variants: true,
                 ingredients: true,
+                allergens: true,
+                tags: true,
               },
             },
           },
@@ -124,8 +126,9 @@ export class MenuService {
                     },
                   },
                 },
-                variants: true,
                 ingredients: true,
+                allergens: true,
+                tags: true,
               },
             },
           },
@@ -150,6 +153,8 @@ export class MenuService {
       sortOrder: number;
       dishes: Array<
         Record<string, unknown> & {
+          allergens?: Array<{ name: string }>;
+          tags?: Array<{ name: string }>;
           images: Array<{
             image: {
               id: string;
@@ -165,7 +170,14 @@ export class MenuService {
       restaurantName: restaurant.title,
       categories: restaurant.categories.map((category) => ({
         ...category,
-        dishes: category.dishes.map((dish) => this.mapDishImages(dish)),
+        dishes: category.dishes.map((dish) => {
+          const mapped = this.mapDishImages(dish);
+          return {
+            ...mapped,
+            allergens: dish.allergens?.map((item) => item.name) ?? [],
+            tags: dish.tags?.map((item) => item.name) ?? [],
+          };
+        }),
       })),
     };
   }
@@ -208,9 +220,22 @@ export class MenuService {
                 isLactoseFree: dish.isLactoseFree ?? false,
                 badge: 'NONE',
                 isAvailable: dish.isAvailable ?? true,
-                allergens: dish.allergens ?? [],
-                tags: [],
-                taxRate: 0,
+                allergens: dish.allergens?.length
+                  ? {
+                      connectOrCreate: dish.allergens.map((name) => ({
+                        where: {
+                          restaurantId_name: {
+                            restaurantId: createMenuDto.restaurantId,
+                            name,
+                          },
+                        },
+                        create: {
+                          restaurantId: createMenuDto.restaurantId,
+                          name,
+                        },
+                      })),
+                    }
+                  : undefined,
               })),
             },
           },

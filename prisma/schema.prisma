@@ -9,38 +9,22 @@ datasource db {
 model User {
   id                 Int          @id @default(autoincrement())
   email              String       @unique
-  password           String?
   firstName          String?
   lastName           String?
   photo              String?
   phone              String?
-  role               String       @default("STAFF")
+  role               EnumRole     @default(STAFF)
   pinCode            String?
-  status             StaffStatus  @default(OFF_DUTY)
-  hourlyRate         Float        @default(0.0)
-  salesPercentage    Float        @default(0.0)
   restaurantId       Int?
   isActive           Boolean      @default(true)
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @default(now()) @updatedAt
-  shifts             StaffShift[]
   orders             Order[]      @relation("WaiterOrders")
   sessions           Session[]
   restaurants        Restaurant[] @relation("RestaurantOwner")
   staffRestaurant    Restaurant?  @relation("RestaurantStaff", fields: [restaurantId], references: [id], onDelete: Cascade)
   loginCodeHash      String?
   loginCodeExpiresAt DateTime?
-}
-
-model StaffShift {
-  id           String    @id @default(uuid())
-  userId       Int
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  restaurantId Int
-  clockIn      DateTime  @default(now())
-  clockOut     DateTime?
-  totalHours   Float     @default(0.0)
-  earnings     Float     @default(0.0)
 }
 
 model Session {
@@ -88,7 +72,6 @@ model Restaurant {
   dishTagLookups      DishTagLookup[]
   dishAllergenLookups DishAllergenLookup[]
   inventoryItems      InventoryItem[]
-  zones               Zone[]
 }
 
 model PosIntegration {
@@ -103,28 +86,16 @@ model PosIntegration {
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 }
 
-model Zone {
-  id           String        @id @default(uuid())
-  name         String
-  restaurantId Int
-  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  diningTables DiningTable[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-
-  @@unique([name, restaurantId])
-}
-
 model InventoryItem {
-  id           String           @id @default(uuid())
-  restaurantId Int
-  name         String
-  stock        Float            @default(0)
-  unit         String
-  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  ingredients  DishIngredient[]
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id               String           @id @default(uuid())
+  restaurantId     Int
+  name             String
+  stock            Float            @default(0)
+  unit             String
+  restaurant       Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  ingredientDishes DishIngredient[]
 
   @@unique([restaurantId, name])
 }
@@ -145,6 +116,7 @@ model DishTagLookup {
   restaurantId Int
   name         String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  dishes       Dish[]     @relation("DishTagLookup")
 
   @@unique([restaurantId, name])
 }
@@ -154,6 +126,7 @@ model DishAllergenLookup {
   restaurantId Int
   name         String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  dishes       Dish[]     @relation("DishAllergenLookup")
 
   @@unique([restaurantId, name])
 }
@@ -183,7 +156,7 @@ model Category {
 }
 
 model Dish {
-  id            String           @id @default(uuid())
+  id            String               @id @default(uuid())
   categoryId    String
   name          String
   description   String?
@@ -191,46 +164,22 @@ model Dish {
   weight        Float?
   cookingTime   Int?
   calories      Int?
-  isVegan       Boolean          @default(false)
-  isSpicy       Boolean          @default(false)
-  isLactoseFree Boolean          @default(false)
-  badge         BadgeType        @default(NONE)
-  allergens     String[]
-  tags          String[]
-  taxRate       Float            @default(0)
-  isAvailable   Boolean          @default(true)
-  sortOrder     Int              @default(0)
-  category      Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  isVegan       Boolean              @default(false)
+  isSpicy       Boolean              @default(false)
+  isLactoseFree Boolean              @default(false)
+  badge         BadgeType            @default(NONE)
+  allergens     DishAllergenLookup[] @relation("DishAllergenLookup")
+  tags          DishTagLookup[]      @relation("DishTagLookup")
+  isAvailable   Boolean              @default(true)
+  sortOrder     Int                  @default(0)
+  category      Category             @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   modifiers     DishModifier[]
   images        ImageDish[]
   ingredients   DishIngredient[]
   orderItems    OrderItem[]
-  variants      DishVariant[]
   comboDishes   ComboDish[]
-  upsellTo      DishUpsell[]     @relation("MainDishRelation")
-  upselledBy    DishUpsell[]     @relation("UpsellDishRelation")
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @default(now()) @updatedAt
-}
-
-model DishVariant {
-  id        String   @id @default(uuid())
-  dishId    String
-  name      String
-  price     Float
-  sku       String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  dish      Dish     @relation(fields: [dishId], references: [id], onDelete: Cascade)
-}
-
-model DishUpsell {
-  mainDishId   String
-  upsellDishId String
-  mainDish     Dish   @relation("MainDishRelation", fields: [mainDishId], references: [id], onDelete: Cascade)
-  upsellDish   Dish   @relation("UpsellDishRelation", fields: [upsellDishId], references: [id], onDelete: Cascade)
-
-  @@id([mainDishId, upsellDishId])
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @default(now()) @updatedAt
 }
 
 model Combo {
@@ -249,8 +198,6 @@ model ComboDish {
   id      String @id @default(uuid())
   comboId String
   dishId  String
-  name    String
-  price   Float
   combo   Combo  @relation(fields: [comboId], references: [id], onDelete: Cascade)
   dish    Dish   @relation(fields: [dishId], references: [id], onDelete: Cascade)
 }
@@ -280,14 +227,14 @@ model ModifierGroup {
 }
 
 model ModifierOption {
-  id                 String            @id @default(uuid())
+  id                 String              @id @default(uuid())
   modifierGroupId    String
   name               String
-  price              Float             @default(0)
-  isAvailable        Boolean           @default(true)
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-  group              ModifierGroup     @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+  price              Float               @default(0)
+  isAvailable        Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  group              ModifierGroup       @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
   orderItemModifiers OrderItemModifier[]
 }
 
@@ -304,11 +251,10 @@ model DiningTable {
   id           String      @id @default(uuid())
   number       Int
   type         String
+  zone         String?
   status       TableStatus @default(INACTIVE)
   restaurantId Int
   restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  zoneId       String?
-  zone         Zone?       @relation(fields: [zoneId], references: [id], onDelete: SetNull)
   orders       Order[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
@@ -317,20 +263,19 @@ model DiningTable {
 }
 
 model Order {
-  id             String      @id @default(uuid())
-  restaurantId   Int
-  tableId        String?
-  type           OrderType   @default(DINE_IN)
-  status         String      @default("PENDING")
-  totalAmount    Float       @default(0.0)
-  waiterId       Int?
-  waiter         User?       @relation("WaiterOrders", fields: [waiterId], references: [id], onDelete: SetNull)
-  voidedBy       Int?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
-  items          OrderItem[]
-  restaurant     Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  table          DiningTable? @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  id           String       @id @default(uuid())
+  restaurantId Int
+  tableId      String?
+  type         OrderType    @default(DINE_IN)
+  status       OrderStatus  @default(PENDING)
+  totalAmount  Float        @default(0.0)
+  waiterId     Int?
+  waiter       User?        @relation("WaiterOrders", fields: [waiterId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  items        OrderItem[]
+  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table        DiningTable? @relation(fields: [tableId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId, status])
   @@index([tableId])
@@ -409,12 +354,6 @@ enum BadgeType {
   HIT
   CHEF_CHOICE
   TOP_RATED
-}
-
-enum StaffStatus {
-  OFF_DUTY
-  ON_DUTY
-  BREAK
 }
 
 enum TableStatus {

@@ -26,11 +26,12 @@ export class CategoriesService {
           create: (createCategoryDto.dishes ?? []).map((dish) => {
             const {
               ingredients,
-              variants,
               modifierIds,
               upsellDishIds,
               ...dishData
             } = dish;
+            const tagNames = dishData.tags ?? [];
+            const allergenNames = dishData.allergens ?? [];
             return {
               name: dishData.name,
               description: dishData.description || '',
@@ -42,18 +43,46 @@ export class CategoriesService {
               isSpicy: dishData.isSpicy ?? false,
               isLactoseFree: dishData.isLactoseFree ?? false,
               badge: (dishData.badge as BadgeType) || BadgeType.NONE,
-              taxRate: dishData.taxRate ?? 0,
               isAvailable: dishData.isAvailable ?? true,
-              allergens: dishData.allergens ?? [],
-              tags: dishData.tags ?? [],
+              allergens: allergenNames.length
+                ? {
+                    connectOrCreate: allergenNames.map((name) => ({
+                      where: {
+                        restaurantId_name: {
+                          restaurantId: createCategoryDto.restaurantId,
+                          name,
+                        },
+                      },
+                      create: {
+                        restaurantId: createCategoryDto.restaurantId,
+                        name,
+                      },
+                    })),
+                  }
+                : undefined,
+              tags: tagNames.length
+                ? {
+                    connectOrCreate: tagNames.map((name) => ({
+                      where: {
+                        restaurantId_name: {
+                          restaurantId: createCategoryDto.restaurantId,
+                          name,
+                        },
+                      },
+                      create: {
+                        restaurantId: createCategoryDto.restaurantId,
+                        name,
+                      },
+                    })),
+                  }
+                : undefined,
               ingredients: { create: ingredients ?? [] },
-              variants: { create: variants ?? [] },
             };
           }),
         },
       },
       include: {
-        dishes: { include: { ingredients: true, variants: true } },
+        dishes: { include: { ingredients: true, allergens: true, tags: true } },
       },
     });
 

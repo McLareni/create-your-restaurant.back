@@ -9,16 +9,12 @@ import { SessionAuthMiddleware } from '../restaurants/middleware/session-auth.mi
 import { UsersModule } from '../users/users.module';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
-import { OrdersValidationService } from './orders-validation.service';
-import { OrdersInventoryService } from './orders-inventory.service';
 
 @Module({
   imports: [UsersModule],
   controllers: [OrdersController],
   providers: [
     OrdersService,
-    OrdersValidationService,
-    OrdersInventoryService,
     PrismaService,
     SessionAuthMiddleware,
   ],

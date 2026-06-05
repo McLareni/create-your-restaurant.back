@@ -8,7 +8,6 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTableDto } from './dto/create-table.dto';
 import { UpdateTableDto } from './dto/update-table.dto';
-import { CreateZoneDto } from './dto/zone.dto';
 
 @Injectable()
 export class TablesService {
@@ -27,7 +26,6 @@ export class TablesService {
     await this.checkAccess(restaurantId, userId);
     return this.prismaService.diningTable.findMany({
       where: { restaurantId },
-      include: { zone: true },
       orderBy: { number: 'asc' },
     });
   }
@@ -52,9 +50,8 @@ export class TablesService {
         type: dto.type,
         status: dto.status || 'INACTIVE',
         restaurantId,
-        zoneId: dto.zoneId || null,
+        zone: dto.zone || null,
       },
-      include: { zone: true },
     });
   }
 
@@ -92,9 +89,8 @@ export class TablesService {
         ...(dto.number !== undefined && { number: Number(dto.number) }),
         ...(dto.type !== undefined && { type: dto.type }),
         ...(dto.status !== undefined && { status: dto.status }),
-        ...(dto.zoneId !== undefined && { zoneId: dto.zoneId }),
+        ...(dto.zone !== undefined && { zone: dto.zone }),
       },
-      include: { zone: true },
     });
   }
 
@@ -114,44 +110,6 @@ export class TablesService {
     });
 
     return { success: true };
-  }
-
-  async findAllZones(restaurantId: number, userId: number) {
-    await this.checkAccess(restaurantId, userId);
-    return this.prismaService.zone.findMany({
-      where: { restaurantId },
-      orderBy: { name: 'asc' },
-    });
-  }
-
-  async createZone(restaurantId: number, dto: CreateZoneDto, userId: number) {
-    await this.checkAccess(restaurantId, userId);
-
-    const exists = await this.prismaService.zone.findUnique({
-      where: {
-        name_restaurantId: {
-          name: dto.name,
-          restaurantId,
-        },
-      },
-    });
-
-    if (exists) {
-      throw new ConflictException('Zone with this name already exists');
-    }
-
-    return this.prismaService.zone.create({
-      data: {
-        name: dto.name,
-        restaurantId,
-      },
-    });
-  }
-
-  async deleteZone(id: string) {
-    return this.prismaService.zone.delete({
-      where: { id },
-    });
   }
 
   async checkPublicTableExists(restaurantId: number, id: string) {

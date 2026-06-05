@@ -249,7 +249,6 @@ export class PosService {
                     isAvailable: true,
                     sortOrder: dishCount,
                     badge: BadgeType.NONE,
-                    taxRate: 20,
                   },
                 });
                 dishesCreated++;
