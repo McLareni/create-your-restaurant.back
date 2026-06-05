@@ -1,4 +1,3 @@
-// src/tables/tables.controller.ts
 import {
   Body,
   Controller,
@@ -13,7 +12,6 @@ import {
 import { TablesService } from './tables.service';
 import { CreateTableDto } from './dto/create-table.dto';
 import { UpdateTableDto } from './dto/update-table.dto';
-import { CreateZoneDto } from './dto/zone.dto';
 import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
 
 @Controller('restaurants/:restaurantId/dining-table')
@@ -26,7 +24,6 @@ export class TablesController {
     @Body() createTableDto: CreateTableDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    // Додатково перевіряємо, чи є користувач власником ресторану
     return this.tablesService.create(
       restaurantId,
       createTableDto,
@@ -64,28 +61,6 @@ export class TablesController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.tablesService.delete(restaurantId, id, request.user.id);
-  }
-
-  @Get('zones')
-  getAllZones(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.tablesService.findAllZones(restaurantId, request.user.id);
-  }
-
-  @Post('zones')
-  createZone(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Body() dto: CreateZoneDto,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.tablesService.createZone(restaurantId, dto, request.user.id);
-  }
-
-  @Delete('zones/:id')
-  deleteZone(@Param('id') id: string) {
-    return this.tablesService.deleteZone(id);
   }
 
   @Get(':id/exists')

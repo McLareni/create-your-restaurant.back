@@ -33,12 +33,6 @@ export class LiveMonitorService {
       },
       orderBy: { number: 'asc' },
       include: {
-        zone: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
         orders: {
           where: {
             status: { in: ACTIVE_ORDER_STATUSES },

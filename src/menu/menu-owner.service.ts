@@ -35,8 +35,9 @@ export class MenuOwnerService {
         dishes: {
           orderBy: { sortOrder: 'asc' },
           include: {
-            variants: true,
             ingredients: true,
+            allergens: true,
+            tags: true,
             images: {
               include: {
                 image: {
@@ -50,9 +51,6 @@ export class MenuOwnerService {
             modifiers: {
               select: { modifierGroupId: true },
             },
-            upsellTo: {
-              select: { upsellDishId: true },
-            },
           },
         },
       },
@@ -63,13 +61,14 @@ export class MenuOwnerService {
       categories: categories.map((cat) => ({
         ...cat,
         dishes: cat.dishes.map((dish) => {
-          const { upsellTo, modifiers, images, ...rest } = dish;
+          const { modifiers, images, allergens, tags, ...rest } = dish;
           return {
             ...rest,
+            allergens: allergens.map((item) => item.name),
+            tags: tags.map((item) => item.name),
             images: images.map(({ image }) => image),
             imageUrl: images[0]?.image.url || null,
             modifierIds: modifiers.map((m) => m.modifierGroupId),
-            upsellDishIds: upsellTo.map((u) => u.upsellDishId),
           };
         }),
       })),
@@ -166,7 +165,6 @@ export class MenuOwnerService {
           name: dto.name,
           description: dto.description || '',
           price: dto.price,
-          taxRate: dto.taxRate ?? 20,
           weight: dto.weight ?? null,
           cookingTime: dto.cookingTime ?? null,
           calories: dto.calories ?? null,
@@ -174,23 +172,42 @@ export class MenuOwnerService {
           isSpicy: dto.isSpicy ?? false,
           isLactoseFree: dto.isLactoseFree ?? false,
           badge: (dto.badge as BadgeType) || BadgeType.NONE,
-          allergens: dto.allergens || [],
-          tags: dto.tags || [],
+          allergens: dto.allergens?.length
+            ? {
+                connectOrCreate: dto.allergens.map((name) => ({
+                  where: {
+                    restaurantId_name: {
+                      restaurantId: category.restaurantId,
+                      name,
+                    },
+                  },
+                  create: {
+                    restaurantId: category.restaurantId,
+                    name,
+                  },
+                })),
+              }
+            : undefined,
+          tags: dto.tags?.length
+            ? {
+                connectOrCreate: dto.tags.map((name) => ({
+                  where: {
+                    restaurantId_name: {
+                      restaurantId: category.restaurantId,
+                      name,
+                    },
+                  },
+                  create: {
+                    restaurantId: category.restaurantId,
+                    name,
+                  },
+                })),
+              }
+            : undefined,
           isAvailable: dto.isAvailable ?? true,
           sortOrder: dishCount,
         },
       });
-
-      if (dto.variants && dto.variants.length > 0) {
-        await tx.dishVariant.createMany({
-          data: dto.variants.map((v) => ({
-            dishId: dish.id,
-            name: v.name,
-            price: v.price,
-            sku: v.sku || null,
-          })),
-        });
-      }
 
       if (dto.ingredients && dto.ingredients.length > 0) {
         await tx.dishIngredient.createMany({
@@ -212,18 +229,9 @@ export class MenuOwnerService {
         });
       }
 
-      if (dto.upsellDishIds && dto.upsellDishIds.length > 0) {
-        await tx.dishUpsell.createMany({
-          data: dto.upsellDishIds.map((targetId) => ({
-            mainDishId: dish.id,
-            upsellDishId: targetId,
-          })),
-        });
-      }
-
       return tx.dish.findUnique({
         where: { id: dish.id },
-        include: { variants: true, ingredients: true },
+        include: { ingredients: true, allergens: true, tags: true },
       });
     });
   }
@@ -241,7 +249,6 @@ export class MenuOwnerService {
           name: dto.name,
           description: dto.description,
           price: dto.price,
-          taxRate: dto.taxRate,
           weight: dto.weight ?? null,
           cookingTime: dto.cookingTime ?? null,
           calories: dto.calories ?? null,
@@ -249,23 +256,9 @@ export class MenuOwnerService {
           isSpicy: dto.isSpicy,
           isLactoseFree: dto.isLactoseFree,
           badge: (dto.badge as BadgeType) || BadgeType.NONE,
-          allergens: dto.allergens,
-          tags: dto.tags,
           isAvailable: dto.isAvailable,
         },
       });
-
-      await tx.dishVariant.deleteMany({ where: { dishId } });
-      if (dto.variants && dto.variants.length > 0) {
-        await tx.dishVariant.createMany({
-          data: dto.variants.map((v) => ({
-            dishId,
-            name: v.name,
-            price: v.price,
-            sku: v.sku || null,
-          })),
-        });
-      }
 
       await tx.dishIngredient.deleteMany({ where: { dishId } });
       if (dto.ingredients && dto.ingredients.length > 0) {
@@ -289,19 +282,44 @@ export class MenuOwnerService {
         });
       }
 
-      await tx.dishUpsell.deleteMany({ where: { mainDishId: dishId } });
-      if (dto.upsellDishIds && dto.upsellDishIds.length > 0) {
-        await tx.dishUpsell.createMany({
-          data: dto.upsellDishIds.map((targetId) => ({
-            mainDishId: dishId,
-            upsellDishId: targetId,
-          })),
+      if (dto.allergens !== undefined || dto.tags !== undefined) {
+        const dishWithRestaurant = await tx.dish.findUnique({
+          where: { id: dishId },
+          select: { category: { select: { restaurantId: true } } },
+        });
+        const restaurantId = dishWithRestaurant?.category.restaurantId;
+        if (!restaurantId) {
+          throw new NotFoundException('Dish not found');
+        }
+
+        await tx.dish.update({
+          where: { id: dishId },
+          data: {
+            ...(dto.allergens !== undefined && {
+              allergens: {
+                set: [],
+                connectOrCreate: dto.allergens.map((name) => ({
+                  where: { restaurantId_name: { restaurantId, name } },
+                  create: { restaurantId, name },
+                })),
+              },
+            }),
+            ...(dto.tags !== undefined && {
+              tags: {
+                set: [],
+                connectOrCreate: dto.tags.map((name) => ({
+                  where: { restaurantId_name: { restaurantId, name } },
+                  create: { restaurantId, name },
+                })),
+              },
+            }),
+          },
         });
       }
 
       return tx.dish.findUnique({
         where: { id: dishId },
-        include: { variants: true, ingredients: true },
+        include: { ingredients: true, allergens: true, tags: true },
       });
     });
   }

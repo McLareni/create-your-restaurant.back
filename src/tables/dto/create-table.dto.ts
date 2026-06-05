@@ -7,7 +7,6 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  IsUUID,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -36,9 +35,8 @@ export class CreateTableDto {
   @MaxLength(60)
   type!: string;
 
-  // ДОДАЄМО ЦЕ ПОЛЕ ДЛЯ ЗВ'ЯЗКУ З ЗОНАМИ
-  @ApiPropertyOptional({ example: 'uuid-zone-string' })
+  @ApiPropertyOptional({ example: 'TERRACE' })
   @IsOptional()
-  @IsUUID()
-  zoneId?: string;
+  @IsString()
+  zone?: string;
 }

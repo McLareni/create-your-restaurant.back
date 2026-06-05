@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { hash } from 'bcrypt';
+import { EnumRole } from '@prisma/client';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
@@ -35,9 +36,6 @@ export class StaffService {
       isActive: user.isActive,
       photo: user.photo,
       pinCode: user.pinCode,
-      hourlyRate: user.hourlyRate,
-      salesPercentage: user.salesPercentage,
-      password: user.password ? 'PROTECTED' : '',
     };
   }
 
@@ -121,7 +119,7 @@ export class StaffService {
     const isRoleUsed = await this.prismaService.user.findFirst({
       where: {
         restaurantId,
-        role: role.name,
+        role: EnumRole.STAFF,
       },
     });
     if (isRoleUsed) {
@@ -182,7 +180,6 @@ export class StaffService {
     const passwordHash = createStaffDto.password
       ? await hash(createStaffDto.password, 10)
       : null;
-    const generatedPin = Math.floor(1000 + Math.random() * 9000).toString();
 
     const newUser = await this.prismaService.user.create({
       data: {
@@ -191,13 +188,10 @@ export class StaffService {
         firstName: createStaffDto.firstName,
         lastName: createStaffDto.lastName,
         phone: createStaffDto.phone,
-        role: createStaffDto.role,
+        role: EnumRole.STAFF,
         isActive: createStaffDto.isActive ?? true,
         photo: createStaffDto.photo,
-        password: passwordHash,
-        pinCode: generatedPin,
-        hourlyRate: createStaffDto.hourlyRate ?? 0.0,
-        salesPercentage: createStaffDto.salesPercentage ?? 0.0,
+        pinCode: passwordHash,
       },
     });
 
@@ -259,17 +253,8 @@ export class StaffService {
       throw new NotFoundException('Staff member not found');
     }
 
-    const {
-      firstName,
-      lastName,
-      email,
-      phone,
-      role,
-      isActive,
-      password,
-      hourlyRate,
-      salesPercentage,
-    } = updateStaffDto;
+    const { firstName, lastName, email, phone, role, isActive, password } =
+      updateStaffDto;
 
     if (email !== undefined && email !== staff.email) {
       const emailTaken = await this.prismaService.user.findUnique({
@@ -307,11 +292,9 @@ export class StaffService {
         ...(lastName !== undefined && { lastName }),
         ...(email !== undefined && { email }),
         ...(phone !== undefined && { phone }),
-        ...(role !== undefined && { role }),
+        ...(role !== undefined && { role: EnumRole.STAFF }),
         ...(isActive !== undefined && { isActive }),
-        ...(passwordHash !== undefined && { password: passwordHash }),
-        ...(hourlyRate !== undefined && { hourlyRate }),
-        ...(salesPercentage !== undefined && { salesPercentage }),
+        ...(passwordHash !== undefined && { pinCode: passwordHash }),
       },
     });
 
