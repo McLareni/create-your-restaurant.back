@@ -1,33 +1,33 @@
 import {
-  BadRequestException,
   Injectable,
+  BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
-import { OrderStatus, OrderType, TableStatus } from '@prisma/client';
+import { OrderStatus, OrderType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
-
-type ModifierOptionLookup = {
-  id: string;
-  name: string;
-  price: number;
-  modifierGroupId: string;
-};
+import { OrdersValidationService } from './orders-validation.service';
+import { OrdersInventoryService } from './orders-inventory.service';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly validationService: OrdersValidationService,
+    private readonly inventoryService: OrdersInventoryService,
+  ) {}
 
-  async createPublicOrder(restaurantId: number, createOrderDto: CreateOrderDto) {
+  async createPublicOrder(
+    restaurantId: number,
+    createOrderDto: CreateOrderDto,
+  ) {
     if (!createOrderDto.tableId) {
       throw new BadRequestException('Table ID is required for public orders');
     }
-
     if (createOrderDto.type && createOrderDto.type !== OrderType.DINE_IN) {
       throw new BadRequestException('Public orders support only DINE_IN type');
     }
-
     return this.createOrderInternal(restaurantId, {
       ...createOrderDto,
       type: OrderType.DINE_IN,
@@ -39,8 +39,7 @@ export class OrdersService {
     createOrderDto: CreateOrderDto,
     userId: number,
   ) {
-    await this.ensureRestaurantOwner(restaurantId, userId);
-
+    await this.validationService.ensureRestaurantOwner(restaurantId, userId);
     return this.createOrderInternal(restaurantId, createOrderDto);
   }
 
@@ -48,7 +47,6 @@ export class OrdersService {
     restaurantId: number,
     createOrderDto: CreateOrderDto,
   ) {
-
     const orderType = createOrderDto.type ?? OrderType.DINE_IN;
 
     if (orderType === OrderType.DINE_IN && !createOrderDto.tableId) {
@@ -56,7 +54,7 @@ export class OrdersService {
     }
 
     if (createOrderDto.tableId) {
-      await this.ensureActiveTableBelongsToRestaurant(
+      await this.validationService.ensureActiveTableBelongsToRestaurant(
         restaurantId,
         createOrderDto.tableId,
       );
@@ -65,21 +63,20 @@ export class OrdersService {
     const uniqueDishIds = [
       ...new Set(createOrderDto.items.map((item) => item.dishId)),
     ];
-    const dishes = await this.prismaService.dish.findMany({
+    const dishes = await this.prisma.dish.findMany({
       where: {
         id: { in: uniqueDishIds },
         isAvailable: true,
-        category: {
-          restaurantId,
-        },
+        category: { restaurantId },
       },
       select: {
         id: true,
         price: true,
-        modifiers: {
-          select: {
-            modifierGroupId: true,
-          },
+        name: true,
+        modifiers: { select: { modifierGroupId: true } },
+        ingredients: {
+          where: { NOT: { inventoryItemId: null } },
+          select: { inventoryItemId: true, quantity: true, name: true },
         },
       },
     });
@@ -89,23 +86,44 @@ export class OrdersService {
     }
 
     const dishMap = new Map(dishes.map((dish) => [dish.id, dish]));
-
     const uniqueModifierOptionIds = [
       ...new Set(
         createOrderDto.items
           .flatMap((item) => item.modifiers ?? [])
-          .map((modifier) => modifier.modifierOptionId),
+          .map((m) => m.modifierOptionId),
       ),
     ];
 
-    const modifierOptionMap = await this.getModifierOptionMap(
+    const modifierOptionMap = await this.validationService.getModifierOptionMap(
       uniqueModifierOptionIds,
       restaurantId,
     );
+    const inventoryRequirements = new Map<
+      string,
+      { amount: number; name: string }
+    >();
+
+    for (const item of createOrderDto.items) {
+      const dish = dishMap.get(item.dishId);
+      if (!dish) continue;
+
+      for (const ing of dish.ingredients) {
+        if (!ing.inventoryItemId) continue;
+        const totalNeeded = ing.quantity * item.quantity;
+        const existing = inventoryRequirements.get(ing.inventoryItemId);
+        if (existing) {
+          existing.amount += totalNeeded;
+        } else {
+          inventoryRequirements.set(ing.inventoryItemId, {
+            amount: totalNeeded,
+            name: ing.name,
+          });
+        }
+      }
+    }
 
     const itemsToCreate = createOrderDto.items.map((item) => {
       const dish = dishMap.get(item.dishId);
-
       if (!dish) {
         throw new BadRequestException(
           'Some dishes are unavailable or not found',
@@ -113,35 +131,29 @@ export class OrdersService {
       }
 
       const allowedGroupIds = new Set(
-        dish.modifiers.map((modifier) => modifier.modifierGroupId),
+        dish.modifiers.map((m) => m.modifierGroupId),
       );
-
       const modifiersPayload = (item.modifiers ?? []).map((modifier) => {
         const modifierOption = modifierOptionMap.get(modifier.modifierOptionId);
-
         if (!modifierOption) {
           throw new BadRequestException(
-            `Modifier option ${modifier.modifierOptionId} not found or unavailable`,
+            `Modifier option ${modifier.modifierOptionId} not found`,
           );
         }
-
         if (!allowedGroupIds.has(modifierOption.modifierGroupId)) {
           throw new BadRequestException(
-            `Modifier option ${modifier.modifierOptionId} is not allowed for dish ${item.dishId}`,
+            `Modifier option ${modifier.modifierOptionId} not allowed`,
           );
         }
-
-        const modifierQuantity = modifier.quantity ?? 1;
-
         return {
           modifierOptionId: modifierOption.id,
-          quantity: modifierQuantity,
+          quantity: modifier.quantity ?? 1,
           unitPrice: modifierOption.price,
         };
       });
 
       const modifiersUnitPrice = modifiersPayload.reduce(
-        (sum, modifier) => sum + modifier.unitPrice * modifier.quantity,
+        (sum, m) => sum + m.unitPrice * m.quantity,
         0,
       );
 
@@ -149,9 +161,7 @@ export class OrdersService {
         dishId: item.dishId,
         quantity: item.quantity,
         unitPrice: dish.price + modifiersUnitPrice,
-        modifiers: {
-          create: modifiersPayload,
-        },
+        modifiers: { create: modifiersPayload },
       };
     });
 
@@ -160,45 +170,35 @@ export class OrdersService {
       0,
     );
 
-    const order = await this.prismaService.order.create({
-      data: {
+    const order = await this.prisma.$transaction(async (tx) => {
+      await this.inventoryService.processInventoryRequirements(
+        tx,
         restaurantId,
-        type: orderType,
-        tableId: createOrderDto.tableId,
-        totalAmount,
-        items: {
-          create: itemsToCreate,
+        inventoryRequirements,
+      );
+
+      return tx.order.create({
+        data: {
+          restaurantId,
+          type: orderType,
+          tableId: createOrderDto.tableId,
+          totalAmount,
+          items: { create: itemsToCreate },
         },
-      },
-      include: {
-        table: {
-          select: {
-            id: true,
-            number: true,
-            type: true,
-          },
-        },
-        items: {
-          include: {
-            dish: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-            modifiers: {
-              include: {
-                modifierOption: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
+        include: {
+          table: { select: { id: true, number: true, type: true } },
+          items: {
+            include: {
+              dish: { select: { id: true, name: true } },
+              modifiers: {
+                include: {
+                  modifierOption: { select: { id: true, name: true } },
                 },
               },
             },
           },
         },
-      },
+      });
     });
 
     return {
@@ -208,91 +208,42 @@ export class OrdersService {
   }
 
   async getOrders(restaurantId: number, userId: number, status?: OrderStatus) {
-    await this.ensureRestaurantOwner(restaurantId, userId);
-
-    const orders = await this.prismaService.order.findMany({
-      where: {
-        restaurantId,
-        status,
-      },
+    await this.validationService.ensureRestaurantOwner(restaurantId, userId);
+    const orders = await this.prisma.order.findMany({
+      where: { restaurantId, status },
       orderBy: { createdAt: 'desc' },
       include: {
-        table: {
-          select: {
-            id: true,
-            number: true,
-            type: true,
-          },
-        },
+        table: { select: { id: true, number: true, type: true } },
         items: {
           include: {
-            dish: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
+            dish: { select: { id: true, name: true } },
             modifiers: {
-              include: {
-                modifierOption: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-              },
+              include: { modifierOption: { select: { id: true, name: true } } },
             },
           },
         },
       },
     });
-
     return orders.map((order) => this.mapOrder(order));
   }
 
   async getOrderById(restaurantId: number, orderId: string, userId: number) {
-    await this.ensureRestaurantOwner(restaurantId, userId);
-
-    const order = await this.prismaService.order.findFirst({
-      where: {
-        id: orderId,
-        restaurantId,
-      },
+    await this.validationService.ensureRestaurantOwner(restaurantId, userId);
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
       include: {
-        table: {
-          select: {
-            id: true,
-            number: true,
-            type: true,
-          },
-        },
+        table: { select: { id: true, number: true, type: true } },
         items: {
           include: {
-            dish: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
+            dish: { select: { id: true, name: true } },
             modifiers: {
-              include: {
-                modifierOption: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-              },
+              include: { modifierOption: { select: { id: true, name: true } } },
             },
           },
         },
       },
     });
-
-    if (!order) {
-      throw new NotFoundException('Order not found');
-    }
-
+    if (!order) throw new NotFoundException('Order not found');
     return this.mapOrder(order);
   }
 
@@ -302,50 +253,34 @@ export class OrdersService {
     updateOrderDto: UpdateOrderDto,
     userId: number,
   ) {
-    await this.ensureRestaurantOwner(restaurantId, userId);
-    await this.ensureOrderBelongsToRestaurant(restaurantId, orderId);
+    await this.validationService.ensureRestaurantOwner(restaurantId, userId);
+    await this.validationService.ensureOrderBelongsToRestaurant(
+      restaurantId,
+      orderId,
+    );
 
     if (updateOrderDto.tableId) {
-      await this.ensureActiveTableBelongsToRestaurant(
+      await this.validationService.ensureActiveTableBelongsToRestaurant(
         restaurantId,
         updateOrderDto.tableId,
       );
     }
 
-    const updatedOrder = await this.prismaService.order.update({
+    const updatedOrder = await this.prisma.order.update({
       where: { id: orderId },
       data: updateOrderDto,
       include: {
-        table: {
-          select: {
-            id: true,
-            number: true,
-            type: true,
-          },
-        },
+        table: { select: { id: true, number: true, type: true } },
         items: {
           include: {
-            dish: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
+            dish: { select: { id: true, name: true } },
             modifiers: {
-              include: {
-                modifierOption: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-              },
+              include: { modifierOption: { select: { id: true, name: true } } },
             },
           },
         },
       },
     });
-
     return {
       message: 'Order updated successfully',
       order: this.mapOrder(updatedOrder),
@@ -353,147 +288,26 @@ export class OrdersService {
   }
 
   async deleteOrder(restaurantId: number, orderId: string, userId: number) {
-    await this.ensureRestaurantOwner(restaurantId, userId);
-    await this.ensureOrderBelongsToRestaurant(restaurantId, orderId);
-
-    await this.prismaService.order.delete({
-      where: {
-        id: orderId,
-      },
-    });
-
-    return {
-      message: 'Order deleted successfully',
-    };
+    await this.validationService.ensureRestaurantOwner(restaurantId, userId);
+    await this.validationService.ensureOrderBelongsToRestaurant(
+      restaurantId,
+      orderId,
+    );
+    await this.prisma.order.delete({ where: { id: orderId } });
+    return { message: 'Order deleted successfully' };
   }
 
-  private async ensureRestaurantOwner(restaurantId: number, userId: number) {
-    const restaurant = await this.prismaService.restaurant.findFirst({
-      where: {
-        id: restaurantId,
-        ownerId: userId,
-      },
-      select: { id: true },
-    });
-
-    if (!restaurant) {
-      throw new NotFoundException('Restaurant not found');
-    }
-  }
-
-  private async ensureActiveTableBelongsToRestaurant(
-    restaurantId: number,
-    tableId: string,
-  ) {
-    const table = await this.prismaService.diningTable.findFirst({
-      where: {
-        id: tableId,
-        restaurantId,
-        status: TableStatus.ACTIVE,
-      },
-      select: { id: true },
-    });
-
-    if (!table) {
-      throw new BadRequestException('Table not found or inactive');
-    }
-  }
-
-  private async ensureOrderBelongsToRestaurant(
-    restaurantId: number,
-    orderId: string,
-  ) {
-    const order = await this.prismaService.order.findFirst({
-      where: {
-        id: orderId,
-        restaurantId,
-      },
-      select: { id: true },
-    });
-
-    if (!order) {
-      throw new NotFoundException('Order not found');
-    }
-  }
-
-  private async getModifierOptionMap(
-    modifierOptionIds: string[],
-    restaurantId: number,
-  ) {
-    if (modifierOptionIds.length === 0) {
-      return new Map<string, ModifierOptionLookup>();
-    }
-
-    const modifierOptions = await this.prismaService.modifierOption.findMany({
-      where: {
-        id: { in: modifierOptionIds },
-        isAvailable: true,
-        group: {
-          restaurantId,
-        },
-      },
-      select: {
-        id: true,
-        name: true,
-        price: true,
-        modifierGroupId: true,
-      },
-    });
-
-    if (modifierOptions.length !== modifierOptionIds.length) {
-      throw new BadRequestException(
-        'Some modifier options are unavailable or not found',
-      );
-    }
-
-    return new Map(modifierOptions.map((option) => [option.id, option]));
-  }
-
-  private mapOrder(order: {
-    id: string;
-    restaurantId: number;
-    tableId: string | null;
-    type: OrderType;
-    status: OrderStatus;
-    totalAmount: number;
-    createdAt: Date;
-    updatedAt: Date;
-    table: {
-      id: string;
-      number: number;
-      type: string;
-    } | null;
-    items: Array<{
-      id: string;
-      dishId: string;
-      quantity: number;
-      unitPrice: number;
-      dish: {
-        id: string;
-        name: string;
-      };
-      modifiers: Array<{
-        id: string;
-        modifierOptionId: string;
-        quantity: number;
-        unitPrice: number;
-        modifierOption: {
-          id: string;
-          name: string;
-        };
-      }>;
-    }>;
-  }) {
+  private mapOrder(order: any) {
     return {
       ...order,
-      items: order.items.map((item) => ({
+      items: order.items.map((item: any) => ({
         id: item.id,
         dishId: item.dishId,
         dishName: item.dish.name,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         lineTotal: item.quantity * item.unitPrice,
-        modifiers: item.modifiers.map((modifier) => ({
+        modifiers: item.modifiers.map((modifier: any) => ({
           id: modifier.id,
           modifierOptionId: modifier.modifierOptionId,
           modifierName: modifier.modifierOption.name,

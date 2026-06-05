@@ -8,33 +8,20 @@ import {
   ParseIntPipe,
   Post,
   Req,
+  Patch,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import {
-  ApiBody,
-  ApiCookieAuth,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 import { RestaurantsService } from './restaurants.service';
 import { CheckSlugDto } from './dto/ckeck-restaurant-slug.dto';
 import type { AuthenticatedRequest } from './middleware/session-auth.middleware';
 
-@ApiTags('Restaurants')
 @Controller('restaurants')
 export class RestaurantsController {
   constructor(private readonly restaurantsService: RestaurantsService) {}
 
-  @ApiOperation({ summary: 'Create restaurant' })
-  @ApiCookieAuth('gustio_session')
-  @ApiBody({ type: CreateRestaurantDto })
-  @ApiResponse({
-    status: 201,
-    description: 'Restaurant created successfully',
-  })
-  @ApiResponse({ status: 400, description: 'Session token is required' })
-  @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
   @Post()
   async create(
     @Body() createRestaurantDto: CreateRestaurantDto,
@@ -43,30 +30,18 @@ export class RestaurantsController {
     return this.restaurantsService.create(createRestaurantDto, request.user.id);
   }
 
-  @ApiOperation({ summary: 'Check restaurant slug availability' })
-  @ApiCookieAuth('gustio_session')
-  @ApiBody({ type: CheckSlugDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Slug availability status',
-  })
-  @ApiResponse({ status: 400, description: 'Session token is required' })
-  @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
+  @Post('upload-cover')
+  @UseInterceptors(FileInterceptor('photo'))
+  async uploadCover(@UploadedFile() file: any) {
+    return this.restaurantsService.uploadCover(file);
+  }
+
   @HttpCode(200)
   @Post('check-restaurant-slug')
   checkSlug(@Body() checkSlugDto: CheckSlugDto) {
     return this.restaurantsService.checkSlug(checkSlugDto.slug);
   }
 
-  @ApiOperation({ summary: 'Get restaurant access modules and permissions' })
-  @ApiCookieAuth('gustio_session')
-  @ApiResponse({
-    status: 200,
-    description: 'Access data fetched successfully',
-  })
-  @ApiResponse({ status: 400, description: 'Session token is required' })
-  @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
-  @ApiResponse({ status: 404, description: 'Restaurant not found' })
   @Get(':id/access')
   async getAccess(
     @Param('id', ParseIntPipe) id: number,
@@ -75,19 +50,38 @@ export class RestaurantsController {
     return this.restaurantsService.getAccess(id, request.user.id);
   }
 
-  @ApiOperation({ summary: 'Delete restaurant by id' })
-  @ApiCookieAuth('gustio_session')
-  @ApiResponse({ status: 200, description: 'Restaurant deleted successfully' })
-  @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
-  @ApiResponse({
-    status: 404,
-    description: 'Restaurant not found or access denied',
-  })
   @Delete(':id')
   async delete(
     @Param('id', ParseIntPipe) id: number,
     @Req() request: AuthenticatedRequest,
   ) {
     return this.restaurantsService.delete(id, request.user.id);
+  }
+
+  @Post(':id/modules/connect')
+  async connectModule(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { moduleKey: string; activationCode?: string },
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.restaurantsService.connectModule(
+      id,
+      body.moduleKey,
+      request.user.id,
+    );
+  }
+
+  @Post(':id/modules/toggle')
+  async toggleModule(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { moduleKey: string; isActive: boolean },
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.restaurantsService.toggleModule(
+      id,
+      body.moduleKey,
+      body.isActive,
+      request.user.id,
+    );
   }
 }

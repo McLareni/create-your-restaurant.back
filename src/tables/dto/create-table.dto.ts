@@ -1,7 +1,16 @@
 // src/tables/dto/create-table.dto.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TableStatus } from '@prisma/client';
-import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class CreateTableDto {
   @ApiProperty({ example: 12, minimum: 1 })

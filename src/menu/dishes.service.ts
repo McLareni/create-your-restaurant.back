@@ -165,16 +165,16 @@ export class DishesService {
       }
 
       if (ingredients && ingredients.length > 0) {
-  await tx.dishIngredient.createMany({
-    data: ingredients.map((i) => ({
-      dishId: dish.id,
-      name: i.name,
-      quantity: i.quantity,
-      unit: i.unit,
-      inventoryItemId: i.inventoryItemId || null, // <--- ЗАПИСУЄМО ЗВ'ЯЗОК З СКЛАДОМ
-    })),
-  });
-}
+        await tx.dishIngredient.createMany({
+          data: ingredients.map((i) => ({
+            dishId: dish.id,
+            name: i.name,
+            quantity: i.quantity,
+            unit: i.unit,
+            inventoryItemId: i.inventoryItemId || null, // <--- ЗАПИСУЄМО ЗВ'ЯЗОК З СКЛАДОМ
+          })),
+        });
+      }
 
       if (modifierIds && modifierIds.length > 0) {
         await tx.dishModifier.createMany({
@@ -244,7 +244,7 @@ export class DishesService {
     } = updateDishDto;
 
     const isBadgeType = (value: string): value is BadgeType =>
-      (Object.values(BadgeType) as BadgeType[]).includes(value as BadgeType);
+      Object.values(BadgeType).includes(value as BadgeType);
 
     const badgeValue: BadgeType | undefined =
       dishData.badge && isBadgeType(dishData.badge)
@@ -272,11 +272,15 @@ export class DishesService {
       ...(dishData.isAvailable !== undefined && {
         isAvailable: dishData.isAvailable,
       }),
-      ...(dishData.allergens !== undefined && { allergens: dishData.allergens }),
+      ...(dishData.allergens !== undefined && {
+        allergens: dishData.allergens,
+      }),
       ...(dishData.tags !== undefined && { tags: dishData.tags }),
       ...(categoryId !== undefined && { categoryId }),
       ...(sortOrder !== undefined && { sortOrder }),
-      ...(ingredients !== undefined && { ingredients: { create: ingredients } }),
+      ...(ingredients !== undefined && {
+        ingredients: { create: ingredients },
+      }),
       ...(variants !== undefined && { variants: { create: variants } }),
     };
 

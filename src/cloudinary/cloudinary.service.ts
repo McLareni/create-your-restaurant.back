@@ -2,6 +2,7 @@ import {
   BadGatewayException,
   Injectable,
   InternalServerErrorException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -11,11 +12,18 @@ import {
 } from 'cloudinary';
 import { Readable } from 'node:stream';
 
+export type UploadedStaffImage = {
+  buffer: Buffer;
+  mimetype: string;
+  originalname: string;
+  size: number;
+};
+
 @Injectable()
-export class CloudinaryService {
+export class CloudinaryService implements OnModuleInit {
   constructor(private readonly configService: ConfigService) {}
 
-  async uploadImage(fileBuffer: Buffer, folder: string) {
+  onModuleInit() {
     const cloudinaryUrl = this.configService
       .get<string>('CLOUDINARY_URL')
       ?.trim();
@@ -27,18 +35,20 @@ export class CloudinaryService {
       .get<string>('CLOUDINARY_API_SECRET')
       ?.trim();
 
-    if (cloudinaryUrl) {
-      cloudinary.config(cloudinaryUrl);
-    } else if (cloudName && apiKey && apiSecret) {
+    if (cloudName && apiKey && apiSecret) {
       cloudinary.config({
         cloud_name: cloudName,
         api_key: apiKey,
         api_secret: apiSecret,
       });
+    } else if (cloudinaryUrl) {
+      cloudinary.config(cloudinaryUrl);
     } else {
       throw new InternalServerErrorException('Cloudinary is not configured');
     }
+  }
 
+  async uploadImage(fileBuffer: Buffer, folder: string) {
     return new Promise<UploadApiResponse>((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {

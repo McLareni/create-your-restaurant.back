@@ -9,12 +9,14 @@ import {
   Req,
   UploadedFile,
   UseInterceptors,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { CreateStaffRoleDto } from './dto/create-staff-role.dto';
 import { StaffService } from './staff.service';
+import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
 
 @Controller('restaurants/:restaurantId')
 export class StaffController {
@@ -22,68 +24,92 @@ export class StaffController {
 
   @Post('staff/roles')
   createRole(
-    @Param('restaurantId') restaurantId: string,
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Body() createStaffRoleDto: CreateStaffRoleDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.staffService.createStaffRole(Number(restaurantId), createStaffRoleDto, req.user.id);
+    return this.staffService.createStaffRole(
+      restaurantId,
+      createStaffRoleDto,
+      req.user.id,
+    );
   }
 
   @Get('staff/roles')
-  getRoles(@Param('restaurantId') restaurantId: string, @Req() req: any) {
-    return this.staffService.getStaffRoles(Number(restaurantId), req.user.id);
+  getRoles(
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.staffService.getStaffRoles(restaurantId, req.user.id);
   }
 
   @Delete('staff/roles/:roleId')
   deleteRole(
-    @Param('restaurantId') restaurantId: string,
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('roleId') roleId: string,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.staffService.deleteStaffRole(Number(restaurantId), roleId, req.user.id);
+    return this.staffService.deleteStaffRole(restaurantId, roleId, req.user.id);
   }
 
   @Post('staff')
   createStaff(
-    @Param('restaurantId') restaurantId: string,
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Body() createStaffDto: CreateStaffDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.staffService.createStaff(Number(restaurantId), createStaffDto, req.user.id);
+    return this.staffService.createStaff(
+      restaurantId,
+      createStaffDto,
+      req.user.id,
+    );
   }
 
   @Get('staff')
-  getStaffList(@Param('restaurantId') restaurantId: string, @Req() req: any) {
-    return this.staffService.getStaffList(Number(restaurantId), req.user.id);
+  getStaffList(
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.staffService.getStaffList(restaurantId, req.user.id);
   }
 
   @Patch('staff/:staffId')
   updateStaff(
-    @Param('restaurantId') restaurantId: string,
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('staffId') staffId: string,
     @Body() updateStaffDto: UpdateStaffDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.staffService.updateStaff(Number(restaurantId), staffId, updateStaffDto, req.user.id);
+    return this.staffService.updateStaff(
+      restaurantId,
+      staffId,
+      updateStaffDto,
+      req.user.id,
+    );
   }
 
   @Delete('staff/:staffId')
   deleteStaff(
-    @Param('restaurantId') restaurantId: string,
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('staffId') staffId: string,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.staffService.deleteStaff(Number(restaurantId), staffId, req.user.id);
+    return this.staffService.deleteStaff(restaurantId, staffId, req.user.id);
   }
 
   @Patch('staff/:staffId/photo')
   @UseInterceptors(FileInterceptor('photo'))
   uploadPhoto(
-    @Param('restaurantId') restaurantId: string,
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('staffId') staffId: string,
     @UploadedFile() file: any,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.staffService.uploadStaffPhoto(Number(restaurantId), staffId, req.user.id, file);
+    return this.staffService.uploadStaffPhoto(
+      restaurantId,
+      staffId,
+      req.user.id,
+      file,
+    );
   }
 }

@@ -11,6 +11,9 @@ import { ModifiersModule } from './modifiers/modifiers.module';
 import { CombosModule } from './combos/combos.module';
 import { TablesModule } from './tables/tables.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { PosModule } from './pos/pos.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { LiveCallsModule } from './live-calls/live-calls.module';
 
 @Module({
   imports: [
@@ -23,6 +26,9 @@ import { InventoryModule } from './inventory/inventory.module';
     CombosModule,
     TablesModule,
     InventoryModule,
+    PosModule,
+    AnalyticsModule,
+    LiveCallsModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

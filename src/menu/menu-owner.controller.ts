@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Delete, Param, Body, ParseIntPipe, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Param,
+  Body,
+  ParseIntPipe,
+  Req,
+} from '@nestjs/common';
 import { MenuOwnerService } from './menu-owner.service';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
@@ -35,7 +44,10 @@ export class MenuOwnerController {
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.menuOwnerService.getAllergensLookup(restaurantId, request.user.id);
+    return this.menuOwnerService.getAllergensLookup(
+      restaurantId,
+      request.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Create global tag for restaurant' })
@@ -46,7 +58,11 @@ export class MenuOwnerController {
     @Body() body: { name: string },
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.menuOwnerService.createTagLookup(restaurantId, body.name, request.user.id);
+    return this.menuOwnerService.createTagLookup(
+      restaurantId,
+      body.name,
+      request.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Create global allergen for restaurant' })
@@ -57,7 +73,11 @@ export class MenuOwnerController {
     @Body() body: { name: string },
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.menuOwnerService.createAllergenLookup(restaurantId, body.name, request.user.id);
+    return this.menuOwnerService.createAllergenLookup(
+      restaurantId,
+      body.name,
+      request.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Delete global tag from restaurant lookup' })
@@ -68,7 +88,11 @@ export class MenuOwnerController {
     @Param('name') name: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.menuOwnerService.deleteTagLookup(restaurantId, name, request.user.id);
+    return this.menuOwnerService.deleteTagLookup(
+      restaurantId,
+      name,
+      request.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Delete global allergen from restaurant lookup' })
@@ -79,6 +103,10 @@ export class MenuOwnerController {
     @Param('name') name: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.menuOwnerService.deleteAllergenLookup(restaurantId, name, request.user.id);
+    return this.menuOwnerService.deleteAllergenLookup(
+      restaurantId,
+      name,
+      request.user.id,
+    );
   }
 }

@@ -9,11 +9,19 @@ import { SessionAuthMiddleware } from '../restaurants/middleware/session-auth.mi
 import { UsersModule } from '../users/users.module';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
+import { OrdersValidationService } from './orders-validation.service';
+import { OrdersInventoryService } from './orders-inventory.service';
 
 @Module({
   imports: [UsersModule],
   controllers: [OrdersController],
-  providers: [OrdersService, PrismaService, SessionAuthMiddleware],
+  providers: [
+    OrdersService,
+    OrdersValidationService,
+    OrdersInventoryService,
+    PrismaService,
+    SessionAuthMiddleware,
+  ],
 })
 export class OrdersModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
@@ -22,10 +30,7 @@ export class OrdersModule implements NestModule {
         path: 'restaurants/:restaurantId/orders',
         method: RequestMethod.POST,
       },
-      {
-        path: 'restaurants/:restaurantId/orders',
-        method: RequestMethod.GET,
-      },
+      { path: 'restaurants/:restaurantId/orders', method: RequestMethod.GET },
       {
         path: 'restaurants/:restaurantId/orders/:orderId',
         method: RequestMethod.GET,

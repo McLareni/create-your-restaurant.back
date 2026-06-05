@@ -1,5 +1,15 @@
 // src/tables/tables.controller.ts
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { TablesService } from './tables.service';
 import { CreateTableDto } from './dto/create-table.dto';
 import { UpdateTableDto } from './dto/update-table.dto';
@@ -17,7 +27,11 @@ export class TablesController {
     @Req() request: AuthenticatedRequest,
   ) {
     // Додатково перевіряємо, чи є користувач власником ресторану
-    return this.tablesService.create(restaurantId, createTableDto, request.user.id);
+    return this.tablesService.create(
+      restaurantId,
+      createTableDto,
+      request.user.id,
+    );
   }
 
   @Get()
@@ -35,7 +49,12 @@ export class TablesController {
     @Body() updateTableDto: UpdateTableDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.tablesService.update(restaurantId, id, updateTableDto, request.user.id);
+    return this.tablesService.update(
+      restaurantId,
+      id,
+      updateTableDto,
+      request.user.id,
+    );
   }
 
   @Delete(':id')
@@ -65,9 +84,7 @@ export class TablesController {
   }
 
   @Delete('zones/:id')
-  deleteZone(
-    @Param('id') id: string,
-  ) {
+  deleteZone(@Param('id') id: string) {
     return this.tablesService.deleteZone(id);
   }
 
