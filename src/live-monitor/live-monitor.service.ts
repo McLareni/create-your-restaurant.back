@@ -12,7 +12,7 @@ const ACTIVE_ORDER_STATUSES: OrderStatus[] = [
 export class LiveMonitorService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async checkAccess(restaurantId: number, userId: number) {
+  async ensureRestaurantAccess(restaurantId: number, userId: number) {
     const restaurant = await this.prisma.restaurant.findFirst({
       where: { id: restaurantId, ownerId: userId },
       select: { id: true },
@@ -24,7 +24,7 @@ export class LiveMonitorService {
   }
 
   async getTablesWithActiveOrders(restaurantId: number, userId: number) {
-    await this.checkAccess(restaurantId, userId);
+    await this.ensureRestaurantAccess(restaurantId, userId);
 
     const tables = await this.prisma.diningTable.findMany({
       where: {

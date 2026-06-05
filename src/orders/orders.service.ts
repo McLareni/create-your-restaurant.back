@@ -4,13 +4,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { OrderStatus, OrderType } from '@prisma/client';
+import { LiveMonitorGateway } from '../live-monitor/live-monitor.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly liveMonitorGateway: LiveMonitorGateway,
+  ) {}
 
   async createPublicOrder(
     restaurantId: number,
@@ -160,6 +164,12 @@ export class OrdersService {
       },
     });
 
+    this.liveMonitorGateway.emitOrdersChanged(
+      restaurantId,
+      'created',
+      order.id,
+    );
+
     return {
       message: 'Order created successfully',
       order: this.mapOrder(order),
@@ -237,6 +247,13 @@ export class OrdersService {
         },
       },
     });
+
+    this.liveMonitorGateway.emitOrdersChanged(
+      restaurantId,
+      'updated',
+      updatedOrder.id,
+    );
+
     return {
       message: 'Order updated successfully',
       order: this.mapOrder(updatedOrder),
@@ -247,6 +264,9 @@ export class OrdersService {
     await this.ensureRestaurantOwner(restaurantId, userId);
     await this.ensureOrderBelongsToRestaurant(restaurantId, orderId);
     await this.prisma.order.delete({ where: { id: orderId } });
+
+    this.liveMonitorGateway.emitOrdersChanged(restaurantId, 'deleted', orderId);
+
     return { message: 'Order deleted successfully' };
   }
 
