@@ -1,7 +1,20 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InventoryService } from './inventory.service';
-import { CreateInventoryItemDto, UpdateInventoryItemDto } from './dto/inventory.dto';
+import {
+  CreateInventoryItemDto,
+  UpdateInventoryItemDto,
+} from './dto/inventory.dto';
 import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
 
 @ApiTags('Inventory')
@@ -12,7 +25,10 @@ export class InventoryController {
   @ApiOperation({ summary: 'Get all inventory items' })
   @ApiCookieAuth('gustio_session')
   @Get()
-  getAll(@Param('restaurantId', ParseIntPipe) restaurantId: number, @Req() request: AuthenticatedRequest) {
+  getAll(
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @Req() request: AuthenticatedRequest,
+  ) {
     return this.inventoryService.getAll(restaurantId, request.user.id);
   }
 

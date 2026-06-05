@@ -4,11 +4,17 @@ import { RestaurantsController } from './restaurants.controller';
 import { RestaurantsService } from './restaurants.service';
 import { UsersModule } from '../users/users.module';
 import { SessionAuthMiddleware } from './middleware/session-auth.middleware';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Module({
   imports: [UsersModule],
   controllers: [RestaurantsController],
-  providers: [RestaurantsService, PrismaService, SessionAuthMiddleware],
+  providers: [
+    RestaurantsService,
+    PrismaService,
+    SessionAuthMiddleware,
+    CloudinaryService,
+  ],
 })
 export class RestaurantsModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

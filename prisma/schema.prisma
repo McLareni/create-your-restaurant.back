@@ -7,17 +7,40 @@ datasource db {
 }
 
 model User {
-  id                 Int              @id @default(autoincrement())
-  email              String           @unique
+  id                 Int          @id @default(autoincrement())
+  email              String       @unique
+  password           String?
   firstName          String?
   lastName           String?
   photo              String?
-  role               EnumRole
-  createdAt          DateTime         @default(now())
-  loginCodeExpiresAt DateTime?
-  loginCodeHash      String?
-  restaurants        Restaurant[]
+  phone              String?
+  role               String       @default("STAFF")
+  pinCode            String?
+  status             StaffStatus  @default(OFF_DUTY)
+  hourlyRate         Float        @default(0.0)
+  salesPercentage    Float        @default(0.0)
+  restaurantId       Int?
+  isActive           Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @default(now()) @updatedAt
+  shifts             StaffShift[]
+  orders             Order[]      @relation("WaiterOrders")
   sessions           Session[]
+  restaurants        Restaurant[] @relation("RestaurantOwner")
+  staffRestaurant    Restaurant?  @relation("RestaurantStaff", fields: [restaurantId], references: [id], onDelete: Cascade)
+  loginCodeHash      String?
+  loginCodeExpiresAt DateTime?
+}
+
+model StaffShift {
+  id           String    @id @default(uuid())
+  userId       Int
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurantId Int
+  clockIn      DateTime  @default(now())
+  clockOut     DateTime?
+  totalHours   Float     @default(0.0)
+  earnings     Float     @default(0.0)
 }
 
 model Session {
@@ -39,20 +62,45 @@ model Restaurant {
   currency            EnumCurrency
   phoneNumber         String?
   city                String?
+  street              String?
+  building            String?
+  workDays            String[]             @default(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])
+  workHoursStart      String?              @default("10:00")
+  workHoursEnd        String?              @default("22:00")
+  instagram           String?
+  facebook            String?
+  telegram            String?
+  tiktok              String?
+  imageUrl            String?
   language            EnumLanguage
   ownerId             Int
+  purchasedModules    String[]             @default(["menu-engine", "qr-tables", "staff"])
+  activeModules       String[]             @default(["menu-engine", "qr-tables", "staff"])
+  posIntegration      PosIntegration?
   categories          Category[]
   DiningTable         DiningTable[]
   modifierGroups      ModifierGroup[]
   combos              Combo[]
-  owner               User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  staff               Staff[]
+  owner               User                 @relation("RestaurantOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  staff               User[]               @relation("RestaurantStaff")
   staffRoles          StaffRole[]
   orders              Order[]
   dishTagLookups      DishTagLookup[]
   dishAllergenLookups DishAllergenLookup[]
   inventoryItems      InventoryItem[]
   zones               Zone[]
+}
+
+model PosIntegration {
+  id           String     @id @default(uuid())
+  restaurantId Int        @unique
+  provider     String     @default("POSTER")
+  apiKey       String
+  importMenu   Boolean    @default(true)
+  syncStops    Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 }
 
 model Zone {
@@ -159,12 +207,10 @@ model Dish {
   orderItems    OrderItem[]
   variants      DishVariant[]
   comboDishes   ComboDish[]
-
-  upsellTo   DishUpsell[] @relation("MainDishRelation")
-  upselledBy DishUpsell[] @relation("UpsellDishRelation")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  upsellTo      DishUpsell[]     @relation("MainDishRelation")
+  upselledBy    DishUpsell[]     @relation("UpsellDishRelation")
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @default(now()) @updatedAt
 }
 
 model DishVariant {
@@ -209,22 +255,6 @@ model ComboDish {
   dish    Dish   @relation(fields: [dishId], references: [id], onDelete: Cascade)
 }
 
-model Staff {
-  id           String     @id @default(uuid())
-  restaurantId Int
-  firstName    String
-  lastName     String?
-  photo        String?
-  email        String
-  phone        String?
-  role         String
-  password     String?
-  isActive     Boolean    @default(true)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-}
-
 model StaffRole {
   id           String     @id @default(uuid())
   restaurantId Int
@@ -250,14 +280,14 @@ model ModifierGroup {
 }
 
 model ModifierOption {
-  id                 String              @id @default(uuid())
+  id                 String            @id @default(uuid())
   modifierGroupId    String
   name               String
-  price              Float               @default(0)
-  isAvailable        Boolean             @default(true)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  group              ModifierGroup       @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+  price              Float             @default(0)
+  isAvailable        Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  group              ModifierGroup     @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
   orderItemModifiers OrderItemModifier[]
 }
 
@@ -287,17 +317,20 @@ model DiningTable {
 }
 
 model Order {
-  id           String      @id @default(uuid())
-  restaurantId Int
-  tableId      String?
-  type         OrderType   @default(DINE_IN)
-  status       OrderStatus @default(PENDING)
-  totalAmount  Float
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  table        DiningTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
-  items        OrderItem[]
+  id             String      @id @default(uuid())
+  restaurantId   Int
+  tableId        String?
+  type           OrderType   @default(DINE_IN)
+  status         String      @default("PENDING")
+  totalAmount    Float       @default(0.0)
+  waiterId       Int?
+  waiter         User?       @relation("WaiterOrders", fields: [waiterId], references: [id], onDelete: SetNull)
+  voidedBy       Int?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  items          OrderItem[]
+  restaurant     Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table          DiningTable? @relation(fields: [tableId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId, status])
   @@index([tableId])
@@ -376,6 +409,12 @@ enum BadgeType {
   HIT
   CHEF_CHOICE
   TOP_RATED
+}
+
+enum StaffStatus {
+  OFF_DUTY
+  ON_DUTY
+  BREAK
 }
 
 enum TableStatus {

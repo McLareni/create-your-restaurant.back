@@ -44,7 +44,9 @@ export class CombosService {
     });
 
     if (dbDishes.length !== new Set(dishIds).size) {
-      throw new BadRequestException('Some dishes are invalid or do not belong to this restaurant');
+      throw new BadRequestException(
+        'Some dishes are invalid or do not belong to this restaurant',
+      );
     }
 
     const dbDishMap = new Map(dbDishes.map((d) => [d.id, d]));
@@ -98,7 +100,9 @@ export class CombosService {
       });
 
       if (dbDishes.length !== new Set(dishIds).size) {
-        throw new BadRequestException('Some dishes are invalid or do not belong to this restaurant');
+        throw new BadRequestException(
+          'Some dishes are invalid or do not belong to this restaurant',
+        );
       }
       dbDishMap = new Map(dbDishes.map((d) => [d.id, d]));
     }
@@ -118,7 +122,7 @@ export class CombosService {
             dbDishMap && {
               dishes: {
                 create: dto.dishes.map((d) => {
-                  const originalDish = dbDishMap!.get(d.id)!;
+                  const originalDish = dbDishMap.get(d.id)!;
                   return {
                     dishId: originalDish.id,
                     name: originalDish.name,

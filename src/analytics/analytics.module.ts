@@ -2,16 +2,16 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SessionAuthMiddleware } from '../restaurants/middleware/session-auth.middleware';
 import { UsersModule } from '../users/users.module';
-import { InventoryController } from './inventory.controller';
-import { InventoryService } from './inventory.service';
+import { AnalyticsController } from './analytics.controller';
+import { AnalyticsService } from './analytics.service';
 
 @Module({
   imports: [UsersModule],
-  controllers: [InventoryController],
-  providers: [InventoryService, PrismaService, SessionAuthMiddleware],
+  controllers: [AnalyticsController],
+  providers: [AnalyticsService, PrismaService, SessionAuthMiddleware],
 })
-export class InventoryModule implements NestModule {
+export class AnalyticsModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(SessionAuthMiddleware).forRoutes(InventoryController);
+    consumer.apply(SessionAuthMiddleware).forRoutes(AnalyticsController);
   }
 }

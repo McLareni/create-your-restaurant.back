@@ -11,6 +11,9 @@ import { ModifiersModule } from './modifiers/modifiers.module';
 import { CombosModule } from './combos/combos.module';
 import { TablesModule } from './tables/tables.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { PosModule } from './pos/pos.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { LiveCallsModule } from './live-calls/live-calls.module';
 import { LiveMonitorModule } from './live-monitor/live-monitor.module';
 import { OrdersModule } from './orders/orders.module';
 
@@ -25,6 +28,9 @@ import { OrdersModule } from './orders/orders.module';
     CombosModule,
     TablesModule,
     InventoryModule,
+    PosModule,
+    AnalyticsModule,
+    LiveCallsModule,
     LiveMonitorModule,
     OrdersModule,
   ],

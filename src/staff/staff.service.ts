@@ -24,24 +24,50 @@ export class StaffService {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
-  async createStaffRole(restaurantId: number, createStaffRoleDto: CreateStaffRoleDto, userId: number) {
-    const restaurant = await this.prismaService.restaurant.findFirst({
-      where: { id: restaurantId, ownerId: userId },
-      select: { id: true },
-    });
+  private mapToUiStaff(user: any) {
+    return {
+      id: String(user.id),
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      isActive: user.isActive,
+      photo: user.photo,
+      pinCode: user.pinCode,
+      hourlyRate: user.hourlyRate,
+      salesPercentage: user.salesPercentage,
+      password: user.password ? 'PROTECTED' : '',
+    };
+  }
 
+  async createStaffRole(
+    restaurantId: number,
+    createStaffRoleDto: CreateStaffRoleDto,
+    userId: number,
+  ) {
+    const restaurant = await this.prismaService.restaurant.findFirst({
+      where: {
+        id: restaurantId,
+        ownerId: userId,
+      },
+      select: {
+        id: true,
+      },
+    });
     if (!restaurant) {
       throw new NotFoundException('Restaurant not found');
     }
 
     const roleName = createStaffRoleDto.name.trim();
-
     const existingRole = await this.prismaService.staffRole.findUnique({
       where: {
-        restaurantId_name: { restaurantId, name: roleName },
+        restaurantId_name: {
+          restaurantId,
+          name: roleName,
+        },
       },
     });
-
     if (existingRole) {
       throw new BadRequestException('Role already exists in this restaurant');
     }
@@ -56,17 +82,25 @@ export class StaffService {
 
   async getStaffRoles(restaurantId: number, userId: number) {
     const restaurant = await this.prismaService.restaurant.findFirst({
-      where: { id: restaurantId, ownerId: userId },
-      select: { id: true },
+      where: {
+        id: restaurantId,
+        ownerId: userId,
+      },
+      select: {
+        id: true,
+      },
     });
-
     if (!restaurant) {
       throw new NotFoundException('Restaurant not found');
     }
 
     return this.prismaService.staffRole.findMany({
-      where: { restaurantId },
-      orderBy: { name: 'asc' },
+      where: {
+        restaurantId,
+      },
+      orderBy: {
+        name: 'asc',
+      },
     });
   }
 
@@ -75,27 +109,35 @@ export class StaffService {
       where: {
         id: roleId,
         restaurantId,
-        restaurant: { ownerId: userId },
+        restaurant: {
+          ownerId: userId,
+        },
       },
     });
-
     if (!role) {
       throw new NotFoundException('Role not found');
     }
 
-    const isRoleUsed = await this.prismaService.staff.findFirst({
-      where: { restaurantId, role: role.name },
+    const isRoleUsed = await this.prismaService.user.findFirst({
+      where: {
+        restaurantId,
+        role: role.name,
+      },
     });
-
     if (isRoleUsed) {
-      throw new BadRequestException('Cannot delete role because it is assigned to staff members');
+      throw new BadRequestException(
+        'Cannot delete role because it is assigned to staff members',
+      );
     }
 
     await this.prismaService.staffRole.delete({
-      where: { id: roleId },
+      where: {
+        id: roleId,
+      },
     });
-
-    return { message: 'Role deleted successfully' };
+    return {
+      message: 'Role deleted successfully',
+    };
   }
 
   async createStaff(
@@ -108,40 +150,60 @@ export class StaffService {
         id: restaurantId,
         ownerId: userId,
       },
-      select: { id: true },
+      select: {
+        id: true,
+      },
     });
-
     if (!restaurant) {
       throw new NotFoundException('Restaurant not found');
     }
 
     const roleExists = await this.prismaService.staffRole.findFirst({
-      where: { restaurantId, name: createStaffDto.role },
+      where: {
+        restaurantId,
+        name: createStaffDto.role,
+      },
     });
-
     if (!roleExists) {
-      throw new BadRequestException('The assigned role does not exist in this restaurant');
+      throw new BadRequestException(
+        'The assigned role does not exist in this restaurant',
+      );
     }
 
-    const passwordHash = createStaffDto.password ? await hash(createStaffDto.password, 10) : null;
+    const existingUser = await this.prismaService.user.findUnique({
+      where: {
+        email: createStaffDto.email,
+      },
+    });
+    if (existingUser) {
+      throw new BadRequestException('User with this email already exists');
+    }
 
-    const staff = await this.prismaService.staff.create({
+    const passwordHash = createStaffDto.password
+      ? await hash(createStaffDto.password, 10)
+      : null;
+    const generatedPin = Math.floor(1000 + Math.random() * 9000).toString();
+
+    const newUser = await this.prismaService.user.create({
       data: {
         restaurantId,
+        email: createStaffDto.email,
         firstName: createStaffDto.firstName,
         lastName: createStaffDto.lastName,
-        email: createStaffDto.email,
         phone: createStaffDto.phone,
         role: createStaffDto.role,
         isActive: createStaffDto.isActive ?? true,
         photo: createStaffDto.photo,
         password: passwordHash,
+        pinCode: generatedPin,
+        hourlyRate: createStaffDto.hourlyRate ?? 0.0,
+        salesPercentage: createStaffDto.salesPercentage ?? 0.0,
       },
     });
 
     return {
       message: 'Staff member created successfully',
-      staff,
+      staff: this.mapToUiStaff(newUser),
     };
   }
 
@@ -151,17 +213,24 @@ export class StaffService {
         id: restaurantId,
         ownerId: userId,
       },
-      select: { id: true },
+      select: {
+        id: true,
+      },
     });
-
     if (!restaurant) {
       throw new NotFoundException('Restaurant not found');
     }
 
-    return this.prismaService.staff.findMany({
-      where: { restaurantId },
-      orderBy: { createdAt: 'asc' },
+    const users = await this.prismaService.user.findMany({
+      where: {
+        restaurantId,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
     });
+
+    return users.map((user) => this.mapToUiStaff(user));
   }
 
   async updateStaff(
@@ -170,37 +239,69 @@ export class StaffService {
     updateStaffDto: UpdateStaffDto,
     userId: number,
   ) {
-    const staff = await this.prismaService.staff.findFirst({
+    const numericId = Number(staffId);
+    if (Number.isNaN(numericId)) {
+      throw new BadRequestException('Invalid staff ID format');
+    }
+
+    const staff = await this.prismaService.user.findFirst({
       where: {
-        id: staffId,
+        id: numericId,
         restaurantId,
-        restaurant: {
-          ownerId: userId,
+        staffRestaurant: {
+          is: {
+            ownerId: userId,
+          },
         },
       },
-      select: { id: true },
     });
-
     if (!staff) {
       throw new NotFoundException('Staff member not found');
     }
 
-    const { firstName, lastName, email, phone, role, isActive, password } =
-      updateStaffDto;
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      role,
+      isActive,
+      password,
+      hourlyRate,
+      salesPercentage,
+    } = updateStaffDto;
+
+    if (email !== undefined && email !== staff.email) {
+      const emailTaken = await this.prismaService.user.findUnique({
+        where: {
+          email,
+        },
+      });
+      if (emailTaken) {
+        throw new BadRequestException('User with this email already exists');
+      }
+    }
 
     if (role !== undefined) {
       const roleExists = await this.prismaService.staffRole.findFirst({
-        where: { restaurantId, name: role },
+        where: {
+          restaurantId,
+          name: role,
+        },
       });
       if (!roleExists) {
-        throw new BadRequestException('The assigned role does not exist in this restaurant');
+        throw new BadRequestException(
+          'The assigned role does not exist in this restaurant',
+        );
       }
     }
 
     const passwordHash = password ? await hash(password, 10) : undefined;
 
-    const updatedStaff = await this.prismaService.staff.update({
-      where: { id: staffId },
+    const updatedUser = await this.prismaService.user.update({
+      where: {
+        id: numericId,
+      },
       data: {
         ...(firstName !== undefined && { firstName }),
         ...(lastName !== undefined && { lastName }),
@@ -209,35 +310,43 @@ export class StaffService {
         ...(role !== undefined && { role }),
         ...(isActive !== undefined && { isActive }),
         ...(passwordHash !== undefined && { password: passwordHash }),
+        ...(hourlyRate !== undefined && { hourlyRate }),
+        ...(salesPercentage !== undefined && { salesPercentage }),
       },
     });
 
     return {
       message: 'Staff member updated successfully',
-      staff: updatedStaff,
+      staff: this.mapToUiStaff(updatedUser),
     };
   }
 
   async deleteStaff(restaurantId: number, staffId: string, userId: number) {
-    const staff = await this.prismaService.staff.findFirst({
+    const numericId = Number(staffId);
+    if (Number.isNaN(numericId)) {
+      throw new BadRequestException('Invalid staff ID format');
+    }
+
+    const staff = await this.prismaService.user.findFirst({
       where: {
-        id: staffId,
+        id: numericId,
         restaurantId,
-        restaurant: {
-          ownerId: userId,
+        staffRestaurant: {
+          is: {
+            ownerId: userId,
+          },
         },
       },
-      select: { id: true },
     });
-
     if (!staff) {
       throw new NotFoundException('Staff member not found');
     }
 
-    await this.prismaService.staff.delete({
-      where: { id: staffId },
+    await this.prismaService.user.delete({
+      where: {
+        id: numericId,
+      },
     });
-
     return {
       message: 'Staff member deleted successfully',
     };
@@ -252,22 +361,26 @@ export class StaffService {
     if (!file) {
       throw new BadRequestException('Photo file is required');
     }
-
     if (!file.mimetype.startsWith('image/')) {
       throw new BadRequestException('Only image files are allowed');
     }
 
-    const staff = await this.prismaService.staff.findFirst({
+    const numericId = Number(staffId);
+    if (Number.isNaN(numericId)) {
+      throw new BadRequestException('Invalid staff ID format');
+    }
+
+    const staff = await this.prismaService.user.findFirst({
       where: {
-        id: staffId,
+        id: numericId,
         restaurantId,
-        restaurant: {
-          ownerId: userId,
+        staffRestaurant: {
+          is: {
+            ownerId: userId,
+          },
         },
       },
-      select: { id: true },
     });
-
     if (!staff) {
       throw new NotFoundException('Staff member not found');
     }
@@ -276,15 +389,18 @@ export class StaffService {
       file.buffer,
       'staff',
     );
-
-    const updatedStaff = await this.prismaService.staff.update({
-      where: { id: staffId },
-      data: { photo: uploaded.secure_url },
+    const updatedUser = await this.prismaService.user.update({
+      where: {
+        id: numericId,
+      },
+      data: {
+        photo: uploaded.secure_url,
+      },
     });
 
     return {
       message: 'Staff photo updated successfully',
-      staff: updatedStaff,
+      staff: this.mapToUiStaff(updatedUser),
     };
   }
 }
