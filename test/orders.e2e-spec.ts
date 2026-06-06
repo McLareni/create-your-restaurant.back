@@ -11,6 +11,8 @@ describe('OrdersController (e2e)', () => {
   let app: INestApplication<App>;
 
   const ordersServiceMock = {
+    createPublicOrder: jest.fn(),
+    appendItemsToPublicOrder: jest.fn(),
     createOrder: jest.fn(),
     getOrders: jest.fn(),
     getOrderById: jest.fn(),
@@ -111,6 +113,68 @@ describe('OrdersController (e2e)', () => {
       });
 
     expect(ordersServiceMock.createOrder).toHaveBeenCalledWith(1, payload, 1);
+  });
+
+  it('/restaurants/:restaurantId/orders/public/:orderId/items (POST) should append items to existing public order', async () => {
+    const payload = {
+      items: [
+        {
+          dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
+          quantity: 1,
+        },
+      ],
+    };
+
+    ordersServiceMock.appendItemsToPublicOrder.mockResolvedValue({
+      message: 'Items appended successfully',
+      order: {
+        id: 'order-1',
+        restaurantId: 1,
+        status: OrderStatus.PENDING,
+        totalAmount: 1240,
+        items: [
+          {
+            id: 'order-item-2',
+            dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
+            dishName: 'Margherita',
+            quantity: 1,
+            unitPrice: 260,
+            lineTotal: 260,
+            modifiers: [],
+          },
+        ],
+      },
+    });
+
+    await request(app.getHttpServer())
+      .post('/restaurants/1/orders/public/order-1/items')
+      .send(payload)
+      .expect(201)
+      .expect((response) => {
+        expect(response.body.message).toBe('Items appended successfully');
+        expect(response.body.order.id).toBe('order-1');
+        expect(response.body.order.totalAmount).toBe(1240);
+      });
+
+    expect(ordersServiceMock.appendItemsToPublicOrder).toHaveBeenCalledWith(
+      1,
+      'order-1',
+      payload,
+    );
+  });
+
+  it('/restaurants/:restaurantId/orders/public/:orderId/items (POST) should validate payload', async () => {
+    await request(app.getHttpServer())
+      .post('/restaurants/1/orders/public/order-1/items')
+      .send({
+        items: [
+          {
+            dishId: 'not-uuid',
+            quantity: 0,
+          },
+        ],
+      })
+      .expect(400);
   });
 
   it('/restaurants/:restaurantId/orders (POST) should validate payload', async () => {
@@ -321,6 +385,20 @@ describe('OrdersController (e2e)', () => {
     expect(orderItemPath.delete!.summary).toBe('Delete order');
     expect(Object.keys(orderItemPath.delete!.responses)).toEqual(
       expect.arrayContaining(['200', '401', '404']),
+    );
+
+    const publicOrderItemsPath =
+      document.paths[
+        '/restaurants/{restaurantId}/orders/public/{orderId}/items'
+      ];
+    expect(publicOrderItemsPath).toBeDefined();
+    expect(publicOrderItemsPath.post).toBeDefined();
+    expect(publicOrderItemsPath.post!.summary).toBe(
+      'Append items to existing public order',
+    );
+    expect(publicOrderItemsPath.post!.requestBody).toBeDefined();
+    expect(Object.keys(publicOrderItemsPath.post!.responses)).toEqual(
+      expect.arrayContaining(['201', '400']),
     );
   });
 

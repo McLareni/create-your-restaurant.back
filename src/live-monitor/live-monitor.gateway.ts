@@ -10,6 +10,11 @@ import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { UsersService } from '../users/users.service';
 import { LiveMonitorService } from './live-monitor.service';
+import { getAllowedCorsOrigins } from '../common/cors';
+
+type LiveMonitorSnapshot = Awaited<
+  ReturnType<LiveMonitorService['getTablesWithActiveOrdersSnapshot']>
+>;
 
 type SubscriptionPayload = {
   restaurantId: number | string;
@@ -18,7 +23,7 @@ type SubscriptionPayload = {
 @WebSocketGateway({
   namespace: '/live-monitor',
   cors: {
-    origin: [process.env.FRONTEND_URL ?? 'http://localhost:3000'],
+    origin: getAllowedCorsOrigins(),
     credentials: true,
   },
 })
@@ -46,6 +51,18 @@ export class LiveMonitorGateway implements OnGatewayConnection {
 
       const user = await this.usersService.validateSessionToken(token);
       client.data.userId = user.id;
+
+      const restaurantId = Number(client.handshake.auth?.restaurantId);
+
+      if (!restaurantId || Number.isNaN(restaurantId)) {
+        return;
+      }
+
+      await this.liveMonitorService.ensureRestaurantAccess(
+        restaurantId,
+        user.id,
+      );
+      await client.join(this.getRestaurantRoom(restaurantId));
     } catch {
       client.disconnect(true);
     }
@@ -84,17 +101,29 @@ export class LiveMonitorGateway implements OnGatewayConnection {
     return { ok: true, restaurantId };
   }
 
-  emitOrdersChanged(
+  async emitOrdersChanged(
     restaurantId: number,
     changeType: 'created' | 'updated' | 'deleted',
     orderId: string,
   ) {
     const room = this.getRestaurantRoom(restaurantId);
+    const snapshot =
+      await this.liveMonitorService.getTablesWithActiveOrdersSnapshot(
+        restaurantId,
+      );
+
     this.server.to(room).emit('live-monitor:orders-changed', {
       restaurantId,
       changeType,
       orderId,
       emittedAt: new Date().toISOString(),
+      snapshot,
+    } satisfies {
+      restaurantId: number;
+      changeType: 'created' | 'updated' | 'deleted';
+      orderId: string;
+      emittedAt: string;
+      snapshot: LiveMonitorSnapshot;
     });
   }
 
