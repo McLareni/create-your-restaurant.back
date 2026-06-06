@@ -4,13 +4,13 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { setupSwagger } from './swagger.js';
 import * as express from 'express';
+import { getAllowedCorsOrigins } from './common/cors';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
 
   app.enableCors({
-    origin: [frontendUrl, 'http://localhost:3000'],
+    origin: getAllowedCorsOrigins(),
     credentials: true,
   });
 

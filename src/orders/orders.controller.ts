@@ -22,6 +22,7 @@ import {
 } from '@nestjs/swagger';
 import { OrderStatus } from '@prisma/client';
 import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
+import { AppendOrderItemsDto } from './dto/append-order-items.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrdersService } from './orders.service';
@@ -66,6 +67,51 @@ export class OrdersController {
     @Body() createOrderDto: CreateOrderDto,
   ) {
     return this.ordersService.createPublicOrder(restaurantId, createOrderDto);
+  }
+
+  @ApiOperation({
+    summary: 'Append items to existing public order',
+    description:
+      'Public endpoint for guests to add more items to an existing active order.',
+  })
+  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
+  @ApiParam({
+    name: 'orderId',
+    type: String,
+    example: '8bca983a-8101-41da-b7dd-f3caeb343cf0',
+  })
+  @ApiBody({
+    type: AppendOrderItemsDto,
+    schema: {
+      example: {
+        items: [
+          {
+            dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
+            quantity: 1,
+          },
+        ],
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Items appended to order successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid payload or order is not editable',
+  })
+  @Post('public/:orderId/items')
+  appendItemsToPublicOrder(
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @Param('orderId') orderId: string,
+    @Body() appendOrderItemsDto: AppendOrderItemsDto,
+  ) {
+    return this.ordersService.appendItemsToPublicOrder(
+      restaurantId,
+      orderId,
+      appendOrderItemsDto,
+    );
   }
 
   @ApiOperation({ summary: 'Create order' })

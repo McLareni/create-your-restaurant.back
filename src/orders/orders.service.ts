@@ -6,6 +6,7 @@ import {
 import { OrderStatus, OrderType } from '@prisma/client';
 import { LiveMonitorGateway } from '../live-monitor/live-monitor.gateway';
 import { PrismaService } from '../prisma/prisma.service';
+import { AppendOrderItemsDto } from './dto/append-order-items.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 
@@ -41,6 +42,78 @@ export class OrdersService {
     return this.createOrderInternal(restaurantId, createOrderDto);
   }
 
+  async appendItemsToPublicOrder(
+    restaurantId: number,
+    orderId: string,
+    appendOrderItemsDto: AppendOrderItemsDto,
+  ) {
+    const existingOrder = await this.prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      select: {
+        id: true,
+        tableId: true,
+        status: true,
+      },
+    });
+
+    if (!existingOrder) {
+      throw new NotFoundException('Order not found');
+    }
+
+    if (
+      existingOrder.status === OrderStatus.COMPLETED ||
+      existingOrder.status === OrderStatus.CANCELED
+    ) {
+      throw new BadRequestException('Order is already closed');
+    }
+
+    if (!existingOrder.tableId) {
+      throw new BadRequestException('Order has no table assigned');
+    }
+
+    await this.ensureActiveTableBelongsToRestaurant(
+      restaurantId,
+      existingOrder.tableId,
+    );
+
+    const { itemsToCreate, totalAmount } = await this.buildOrderItems(
+      restaurantId,
+      appendOrderItemsDto.items,
+    );
+
+    const updatedOrder = await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        totalAmount: { increment: totalAmount },
+        items: { create: itemsToCreate },
+      },
+      include: {
+        table: { select: { id: true, number: true, type: true } },
+        items: {
+          include: {
+            dish: { select: { id: true, name: true } },
+            modifiers: {
+              include: {
+                modifierOption: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    await this.liveMonitorGateway.emitOrdersChanged(
+      restaurantId,
+      'updated',
+      updatedOrder.id,
+    );
+
+    return {
+      message: 'Items appended successfully',
+      order: this.mapOrder(updatedOrder),
+    };
+  }
+
   private async createOrderInternal(
     restaurantId: number,
     createOrderDto: CreateOrderDto,
@@ -58,9 +131,51 @@ export class OrdersService {
       );
     }
 
-    const uniqueDishIds = [
-      ...new Set(createOrderDto.items.map((item) => item.dishId)),
-    ];
+    const { itemsToCreate, totalAmount } = await this.buildOrderItems(
+      restaurantId,
+      createOrderDto.items,
+    );
+
+    const order = await this.prisma.order.create({
+      data: {
+        restaurantId,
+        type: orderType,
+        tableId: createOrderDto.tableId,
+        totalAmount,
+        items: { create: itemsToCreate },
+      },
+      include: {
+        table: { select: { id: true, number: true, type: true } },
+        items: {
+          include: {
+            dish: { select: { id: true, name: true } },
+            modifiers: {
+              include: {
+                modifierOption: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    await this.liveMonitorGateway.emitOrdersChanged(
+      restaurantId,
+      'created',
+      order.id,
+    );
+
+    return {
+      message: 'Order created successfully',
+      order: this.mapOrder(order),
+    };
+  }
+
+  private async buildOrderItems(
+    restaurantId: number,
+    items: CreateOrderDto['items'],
+  ) {
+    const uniqueDishIds = [...new Set(items.map((item) => item.dishId))];
     const dishes = await this.prisma.dish.findMany({
       where: {
         id: { in: uniqueDishIds },
@@ -82,7 +197,7 @@ export class OrdersService {
     const dishMap = new Map(dishes.map((dish) => [dish.id, dish]));
     const uniqueModifierOptionIds = [
       ...new Set(
-        createOrderDto.items
+        items
           .flatMap((item) => item.modifiers ?? [])
           .map((m) => m.modifierOptionId),
       ),
@@ -93,7 +208,7 @@ export class OrdersService {
       restaurantId,
     );
 
-    const itemsToCreate = createOrderDto.items.map((item) => {
+    const itemsToCreate = items.map((item) => {
       const dish = dishMap.get(item.dishId);
       if (!dish) {
         throw new BadRequestException(
@@ -141,39 +256,7 @@ export class OrdersService {
       0,
     );
 
-    const order = await this.prisma.order.create({
-      data: {
-        restaurantId,
-        type: orderType,
-        tableId: createOrderDto.tableId,
-        totalAmount,
-        items: { create: itemsToCreate },
-      },
-      include: {
-        table: { select: { id: true, number: true, type: true } },
-        items: {
-          include: {
-            dish: { select: { id: true, name: true } },
-            modifiers: {
-              include: {
-                modifierOption: { select: { id: true, name: true } },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    this.liveMonitorGateway.emitOrdersChanged(
-      restaurantId,
-      'created',
-      order.id,
-    );
-
-    return {
-      message: 'Order created successfully',
-      order: this.mapOrder(order),
-    };
+    return { itemsToCreate, totalAmount };
   }
 
   async getOrders(restaurantId: number, userId: number, status?: OrderStatus) {
@@ -248,7 +331,7 @@ export class OrdersService {
       },
     });
 
-    this.liveMonitorGateway.emitOrdersChanged(
+    await this.liveMonitorGateway.emitOrdersChanged(
       restaurantId,
       'updated',
       updatedOrder.id,
@@ -265,7 +348,11 @@ export class OrdersService {
     await this.ensureOrderBelongsToRestaurant(restaurantId, orderId);
     await this.prisma.order.delete({ where: { id: orderId } });
 
-    this.liveMonitorGateway.emitOrdersChanged(restaurantId, 'deleted', orderId);
+    await this.liveMonitorGateway.emitOrdersChanged(
+      restaurantId,
+      'deleted',
+      orderId,
+    );
 
     return { message: 'Order deleted successfully' };
   }

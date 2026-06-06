@@ -26,6 +26,10 @@ export class LiveMonitorService {
   async getTablesWithActiveOrders(restaurantId: number, userId: number) {
     await this.ensureRestaurantAccess(restaurantId, userId);
 
+    return this.getTablesWithActiveOrdersSnapshot(restaurantId);
+  }
+
+  async getTablesWithActiveOrdersSnapshot(restaurantId: number) {
     const tables = await this.prisma.diningTable.findMany({
       where: {
         restaurantId,
