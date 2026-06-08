@@ -15,6 +15,25 @@ export class RestaurantsService {
   ) {}
 
   async create(createRestaurantDto: CreateRestaurantDto, userId: number) {
+    const existingRestaurants = await this.prismaService.restaurant.findMany({
+      where: { ownerId: userId },
+      select: { activeModules: true },
+    });
+
+    const hasMultiRestaurantModule = existingRestaurants.some((r) =>
+      r.activeModules.includes('multi-restaurant'),
+    );
+
+    const maxAllowed = hasMultiRestaurantModule ? 3 : 1;
+
+    if (existingRestaurants.length >= maxAllowed) {
+      throw new BadRequestException(
+        hasMultiRestaurantModule
+          ? 'Maximum limit of 3 restaurants reached.'
+          : 'Default limit is 1 restaurant. Activate Multi-Restaurant module.',
+      );
+    }
+
     const restaurant = await this.prismaService.restaurant.create({
       data: {
         title: createRestaurantDto.title,
@@ -76,26 +95,47 @@ export class RestaurantsService {
   }
 
   async getAccess(restaurantId: number, userId: number) {
-    const restaurant = await this.prismaService.restaurant.findFirst({
-      where: {
-        id: restaurantId,
-        ownerId: userId,
+    const allUserRestaurants = await this.prismaService.restaurant.findMany({
+      where: { ownerId: userId },
+      select: {
+        id: true,
+        purchasedModules: true,
+        activeModules: true,
       },
     });
 
-    if (!restaurant) {
+    const currentRestaurant = allUserRestaurants.find(
+      (r) => r.id === restaurantId,
+    );
+    if (!currentRestaurant) {
       throw new NotFoundException('Restaurant not found');
     }
 
+    const globalPurchasedHasMulti = allUserRestaurants.some((r) =>
+      r.purchasedModules.includes('multi-restaurant'),
+    );
+    const globalActiveHasMulti = allUserRestaurants.some((r) =>
+      r.activeModules.includes('multi-restaurant'),
+    );
+
     const purchased =
-      restaurant.purchasedModules && restaurant.purchasedModules.length > 0
-        ? restaurant.purchasedModules
+      currentRestaurant.purchasedModules &&
+      currentRestaurant.purchasedModules.length > 0
+        ? [...currentRestaurant.purchasedModules]
         : ['menu-engine', 'qr-tables', 'staff'];
 
     const active =
-      restaurant.activeModules && restaurant.activeModules.length > 0
-        ? restaurant.activeModules
+      currentRestaurant.activeModules &&
+      currentRestaurant.activeModules.length > 0
+        ? [...currentRestaurant.activeModules]
         : ['menu-engine', 'qr-tables', 'staff'];
+
+    if (globalPurchasedHasMulti && !purchased.includes('multi-restaurant')) {
+      purchased.push('multi-restaurant');
+    }
+    if (globalActiveHasMulti && !active.includes('multi-restaurant')) {
+      active.push('multi-restaurant');
+    }
 
     return {
       purchasedModules: purchased,
@@ -106,13 +146,9 @@ export class RestaurantsService {
 
   async delete(restaurantId: number, userId: number) {
     const restaurant = await this.prismaService.restaurant.findFirst({
-      where: {
-        id: restaurantId,
-        ownerId: userId,
-      },
+      where: { id: restaurantId, ownerId: userId },
       select: { id: true },
     });
-
     if (!restaurant) {
       throw new NotFoundException('Restaurant not found or access denied');
     }
@@ -120,7 +156,6 @@ export class RestaurantsService {
     await this.prismaService.restaurant.delete({
       where: { id: restaurantId },
     });
-
     return {
       message: 'Restaurant deleted successfully',
     };
@@ -152,12 +187,8 @@ export class RestaurantsService {
 
     await this.prismaService.restaurant.update({
       where: { id: restaurantId },
-      data: {
-        purchasedModules: purchased,
-        activeModules: active,
-      },
+      data: { purchasedModules: purchased, activeModules: active },
     });
-
     return { success: true };
   }
 
@@ -171,6 +202,18 @@ export class RestaurantsService {
       where: { id: restaurantId, ownerId: userId },
     });
     if (!restaurant) throw new NotFoundException('Restaurant not found');
+
+    const purchased = restaurant.purchasedModules || [
+      'menu-engine',
+      'qr-tables',
+      'staff',
+    ];
+
+    if (isActive && !purchased.includes(moduleKey)) {
+      throw new BadRequestException(
+        'License error: Module must be purchased first.',
+      );
+    }
 
     let active = restaurant.activeModules || [
       'menu-engine',
@@ -190,7 +233,6 @@ export class RestaurantsService {
       where: { id: restaurantId },
       data: { activeModules: active },
     });
-
     return { success: true };
   }
 }

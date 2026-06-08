@@ -10,6 +10,9 @@ import {
   UploadedFile,
   UseInterceptors,
   ParseIntPipe,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CreateStaffDto } from './dto/create-staff.dto';
@@ -18,9 +21,24 @@ import { CreateStaffRoleDto } from './dto/create-staff-role.dto';
 import { StaffService } from './staff.service';
 import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
 
+interface UploadedStaffImage {
+  buffer: Buffer;
+  mimetype: string;
+  originalname: string;
+  size: number;
+}
+
 @Controller('restaurants/:restaurantId')
 export class StaffController {
   constructor(private readonly staffService: StaffService) {}
+
+  @Get('staff/permissions')
+  getAvailablePermissions(
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.staffService.getAvailablePermissions(restaurantId, req.user.id);
+  }
 
   @Post('staff/roles')
   createRole(
@@ -102,7 +120,18 @@ export class StaffController {
   uploadPhoto(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('staffId') staffId: string,
-    @UploadedFile() file: any,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({
+            maxSize: 5 * 1024 * 1024,
+            message: 'File is too large. Max size 5MB.',
+          }),
+          new FileTypeValidator({ fileType: '.(png|jpeg|jpg|webp)' }),
+        ],
+      }),
+    )
+    file: UploadedStaffImage,
     @Req() req: AuthenticatedRequest,
   ) {
     return this.staffService.uploadStaffPhoto(
