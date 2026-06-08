@@ -8,12 +8,13 @@ datasource db {
 
 model User {
   id                 Int          @id @default(autoincrement())
-  email              String       @unique
+  email              String
   firstName          String?
   lastName           String?
   photo              String?
   phone              String?
   role               EnumRole     @default(STAFF)
+  customRole         String?      
   pinCode            String?
   restaurantId       Int?
   isActive           Boolean      @default(true)
@@ -25,6 +26,8 @@ model User {
   staffRestaurant    Restaurant?  @relation("RestaurantStaff", fields: [restaurantId], references: [id], onDelete: Cascade)
   loginCodeHash      String?
   loginCodeExpiresAt DateTime?
+
+  @@unique([email, restaurantId])
 }
 
 model Session {

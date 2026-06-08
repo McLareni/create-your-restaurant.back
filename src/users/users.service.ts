@@ -35,19 +35,32 @@ export class UsersService {
     const loginCodeHash = await hash(loginCode, 10);
     const loginCodeExpiresAt = new Date(Date.now() + 2 * 60 * 1000);
 
-    await this.prismaService.user.upsert({
-      where: { email },
-      create: {
+    const existingUser = await this.prismaService.user.findFirst({
+      where: {
         email,
-        role: EnumRole.OWNER,
-        loginCodeHash,
-        loginCodeExpiresAt,
-      },
-      update: {
-        loginCodeHash,
-        loginCodeExpiresAt,
+        restaurantId: null,
       },
     });
+
+    if (existingUser) {
+      await this.prismaService.user.update({
+        where: { id: existingUser.id },
+        data: {
+          loginCodeHash,
+          loginCodeExpiresAt,
+        },
+      });
+    } else {
+      await this.prismaService.user.create({
+        data: {
+          email,
+          role: EnumRole.OWNER,
+          loginCodeHash,
+          loginCodeExpiresAt,
+          restaurantId: null,
+        },
+      });
+    }
 
     await resend.emails.send({
       from: 'Create Your Restaurant <onboarding@resend.dev>',
@@ -66,8 +79,11 @@ export class UsersService {
     code: string,
     sessionMetadata: SessionMetadata = {},
   ) {
-    const user = await this.prismaService.user.findUnique({
-      where: { email },
+    const user = await this.prismaService.user.findFirst({
+      where: {
+        email,
+        restaurantId: null,
+      },
     });
 
     if (!user?.loginCodeHash || !user.loginCodeExpiresAt) {
@@ -94,7 +110,7 @@ export class UsersService {
         loginCodeExpiresAt: null,
         sessions: {
           create: {
-            token: sessionToken, // Зберігаємо чистий UUID унікальний рядок
+            token: sessionToken,
             expiresAt: sessionExpiresAt,
             userAgent: sessionMetadata.userAgent,
             ipAddress: sessionMetadata.ipAddress,
@@ -117,7 +133,6 @@ export class UsersService {
       throw new BadRequestException('Session token is required');
     }
 
-    // Видаляємо напряму за токеном через швидкий findUnique/delete селектор
     await this.prismaService.session.deleteMany({
       where: { token: sessionToken },
     });
@@ -132,7 +147,6 @@ export class UsersService {
       throw new UnauthorizedException('Session token is required');
     }
 
-    // Оптимізовано: Швидкий пошук за індексованим полем за 1 SQL запит замість викачування всієї бази
     const session = await this.prismaService.session.findUnique({
       where: { token: sessionToken },
       include: { user: true },
@@ -160,10 +174,12 @@ export class UsersService {
         lastName: user.lastName,
         photo: user.photo,
         role: user.role,
+        phone: user.phone,
         restaurants: restaurants.map((restaurant) => ({
           id: restaurant.id,
           name: restaurant.title,
           slug: restaurant.slug,
+          imageUrl: restaurant.imageUrl,
         })),
       },
     };
