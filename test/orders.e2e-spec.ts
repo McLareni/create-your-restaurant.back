@@ -13,6 +13,9 @@ describe('OrdersController (e2e)', () => {
   const ordersServiceMock = {
     createPublicOrder: jest.fn(),
     appendItemsToPublicOrder: jest.fn(),
+    callWaiterFromPublicMenu: jest.fn(),
+    findPublicOrderByCode: jest.fn(),
+    getPublicOrderById: jest.fn(),
     createOrder: jest.fn(),
     getOrders: jest.fn(),
     getOrderById: jest.fn(),
@@ -175,6 +178,88 @@ describe('OrdersController (e2e)', () => {
         ],
       })
       .expect(400);
+  });
+
+  it('/restaurants/:restaurantId/orders/public/tables/:tableId/call-waiter (POST) should send waiter call', async () => {
+    ordersServiceMock.callWaiterFromPublicMenu.mockResolvedValue({
+      message: 'Waiter call sent successfully',
+      tableId: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
+    });
+
+    await request(app.getHttpServer())
+      .post(
+        '/restaurants/1/orders/public/tables/1a2d7d9c-5f73-4bf0-b89a-f12474a584d3/call-waiter',
+      )
+      .expect(201)
+      .expect({
+        message: 'Waiter call sent successfully',
+        tableId: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
+      });
+
+    expect(ordersServiceMock.callWaiterFromPublicMenu).toHaveBeenCalledWith(
+      1,
+      '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
+    );
+  });
+
+  it('/restaurants/:restaurantId/orders/public/tables/:tableId/by-code/:code (GET) should resolve order id by short code', async () => {
+    ordersServiceMock.findPublicOrderByCode.mockResolvedValue({
+      orderId: '8bca983a-8101-41da-b7dd-f3caeb343cf0',
+    });
+
+    await request(app.getHttpServer())
+      .get(
+        '/restaurants/1/orders/public/tables/1a2d7d9c-5f73-4bf0-b89a-f12474a584d3/by-code/8bca983a',
+      )
+      .expect(200)
+      .expect({
+        orderId: '8bca983a-8101-41da-b7dd-f3caeb343cf0',
+      });
+
+    expect(ordersServiceMock.findPublicOrderByCode).toHaveBeenCalledWith(
+      1,
+      '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
+      '8bca983a',
+    );
+  });
+
+  it('/restaurants/:restaurantId/orders/public/tables/:tableId/:orderId (GET) should return public order details', async () => {
+    ordersServiceMock.getPublicOrderById.mockResolvedValue({
+      order: {
+        id: 'order-1',
+        restaurantId: 1,
+        tableId: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
+        status: OrderStatus.PENDING,
+        totalAmount: 980,
+        items: [
+          {
+            id: 'order-item-1',
+            dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
+            dishName: 'Margherita',
+            quantity: 2,
+            unitPrice: 490,
+            lineTotal: 980,
+            modifiers: [],
+          },
+        ],
+      },
+    });
+
+    await request(app.getHttpServer())
+      .get(
+        '/restaurants/1/orders/public/tables/1a2d7d9c-5f73-4bf0-b89a-f12474a584d3/order-1',
+      )
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.order.id).toBe('order-1');
+        expect(response.body.order.items).toHaveLength(1);
+      });
+
+    expect(ordersServiceMock.getPublicOrderById).toHaveBeenCalledWith(
+      1,
+      '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
+      'order-1',
+    );
   });
 
   it('/restaurants/:restaurantId/orders (POST) should validate payload', async () => {

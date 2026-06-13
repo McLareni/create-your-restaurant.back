@@ -29,6 +29,39 @@ export class LiveMonitorService {
     return this.getTablesWithActiveOrdersSnapshot(restaurantId);
   }
 
+  async resolveWaiterCall(
+    restaurantId: number,
+    tableId: string,
+    userId: number,
+  ) {
+    await this.ensureRestaurantAccess(restaurantId, userId);
+
+    const table = await this.prisma.diningTable.findFirst({
+      where: {
+        id: tableId,
+        restaurantId,
+      },
+      select: { id: true },
+    });
+
+    if (!table) {
+      throw new ForbiddenException('Access to this table is denied');
+    }
+
+    await this.prisma.diningTable.update({
+      where: { id: tableId },
+      data: {
+        isWaiterCallActive: false,
+        waiterCallRequestedAt: null,
+      },
+    });
+
+    return {
+      message: 'Waiter call resolved successfully',
+      tableId,
+    };
+  }
+
   async getTablesWithActiveOrdersSnapshot(restaurantId: number) {
     const tables = await this.prisma.diningTable.findMany({
       where: {
@@ -72,6 +105,8 @@ export class LiveMonitorService {
           number: table.number,
           type: table.type,
           status: table.status,
+          isWaiterCallActive: table.isWaiterCallActive,
+          waiterCallRequestedAt: table.waiterCallRequestedAt,
           zone: table.zone,
           activeOrderCount: table.orders.length,
           activeOrdersTotalAmount,

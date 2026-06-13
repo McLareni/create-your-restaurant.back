@@ -114,6 +114,106 @@ export class OrdersService {
     };
   }
 
+  async callWaiterFromPublicMenu(restaurantId: number, tableId: string) {
+    await this.ensureActiveTableBelongsToRestaurant(restaurantId, tableId);
+
+    await this.prisma.diningTable.update({
+      where: { id: tableId },
+      data: {
+        isWaiterCallActive: true,
+        waiterCallRequestedAt: new Date(),
+      },
+    });
+
+    await this.liveMonitorGateway.emitOrdersChanged(
+      restaurantId,
+      'updated',
+      tableId,
+    );
+
+    return {
+      message: 'Waiter call sent successfully',
+      tableId,
+    };
+  }
+
+  async findPublicOrderByCode(
+    restaurantId: number,
+    tableId: string,
+    orderCode: string,
+  ) {
+    await this.ensureActiveTableBelongsToRestaurant(restaurantId, tableId);
+
+    const normalizedCode = orderCode.trim().replace(/^#/, '').toLowerCase();
+
+    if (!normalizedCode) {
+      throw new BadRequestException('Order code is required');
+    }
+
+    const matchedOrders = await this.prisma.order.findMany({
+      where: {
+        restaurantId,
+        tableId,
+        id: {
+          startsWith: normalizedCode,
+          mode: 'insensitive',
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        id: true,
+      },
+      take: 1,
+    });
+
+    if (matchedOrders.length === 0) {
+      throw new NotFoundException('Order not found');
+    }
+
+    return {
+      orderId: matchedOrders[0].id,
+    };
+  }
+
+  async getPublicOrderById(
+    restaurantId: number,
+    tableId: string,
+    orderId: string,
+  ) {
+    await this.ensureActiveTableBelongsToRestaurant(restaurantId, tableId);
+
+    const order = await this.prisma.order.findFirst({
+      where: {
+        id: orderId,
+        restaurantId,
+        tableId,
+      },
+      include: {
+        table: { select: { id: true, number: true, type: true } },
+        items: {
+          include: {
+            dish: { select: { id: true, name: true } },
+            modifiers: {
+              include: {
+                modifierOption: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    return {
+      order: this.mapOrder(order),
+    };
+  }
+
   private async createOrderInternal(
     restaurantId: number,
     createOrderDto: CreateOrderDto,

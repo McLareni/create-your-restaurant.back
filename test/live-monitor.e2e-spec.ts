@@ -4,6 +4,7 @@ import { TableStatus, OrderStatus, OrderType } from '@prisma/client';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { LiveMonitorGateway } from './../src/live-monitor/live-monitor.gateway';
 import { LiveMonitorController } from './../src/live-monitor/live-monitor.controller';
 import { LiveMonitorService } from './../src/live-monitor/live-monitor.service';
 
@@ -12,6 +13,11 @@ describe('LiveMonitorController (e2e)', () => {
 
   const liveMonitorServiceMock = {
     getTablesWithActiveOrders: jest.fn(),
+    resolveWaiterCall: jest.fn(),
+  };
+
+  const liveMonitorGatewayMock = {
+    emitOrdersChanged: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -21,6 +27,10 @@ describe('LiveMonitorController (e2e)', () => {
         {
           provide: LiveMonitorService,
           useValue: liveMonitorServiceMock,
+        },
+        {
+          provide: LiveMonitorGateway,
+          useValue: liveMonitorGatewayMock,
         },
       ],
     }).compile();
@@ -101,6 +111,32 @@ describe('LiveMonitorController (e2e)', () => {
     await request(app.getHttpServer())
       .get('/restaurants/not-number/live-monitor/tables')
       .expect(400);
+  });
+
+  it('/restaurants/:restaurantId/live-monitor/tables/:tableId/waiter-call/resolve (PATCH) should resolve waiter call', async () => {
+    liveMonitorServiceMock.resolveWaiterCall.mockResolvedValue({
+      message: 'Waiter call resolved successfully',
+      tableId: 'table-1',
+    });
+
+    await request(app.getHttpServer())
+      .patch('/restaurants/1/live-monitor/tables/table-1/waiter-call/resolve')
+      .expect(200)
+      .expect({
+        message: 'Waiter call resolved successfully',
+        tableId: 'table-1',
+      });
+
+    expect(liveMonitorServiceMock.resolveWaiterCall).toHaveBeenCalledWith(
+      1,
+      'table-1',
+      1,
+    );
+    expect(liveMonitorGatewayMock.emitOrdersChanged).toHaveBeenCalledWith(
+      1,
+      'updated',
+      'table-1',
+    );
   });
 
   it('Swagger should describe live-monitor endpoint', () => {

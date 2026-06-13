@@ -256,6 +256,8 @@ model DiningTable {
   type         String
   zone         String?
   status       TableStatus @default(INACTIVE)
+  isWaiterCallActive Boolean   @default(false)
+  waiterCallRequestedAt DateTime?
   restaurantId Int
   restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   orders       Order[]
