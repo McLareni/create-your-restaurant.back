@@ -114,6 +114,107 @@ export class OrdersController {
     );
   }
 
+  @ApiOperation({
+    summary: 'Call waiter from public table menu',
+    description:
+      'Public endpoint for guests to notify staff from table QR menu.',
+  })
+  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
+  @ApiParam({
+    name: 'tableId',
+    type: String,
+    example: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Waiter call sent successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Table is inactive or does not belong to restaurant',
+  })
+  @Post('public/tables/:tableId/call-waiter')
+  callWaiterFromPublicMenu(
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @Param('tableId') tableId: string,
+  ) {
+    return this.ordersService.callWaiterFromPublicMenu(restaurantId, tableId);
+  }
+
+  @ApiOperation({
+    summary: 'Find public order by short code',
+    description:
+      'Public endpoint to resolve full order id by short code for current table.',
+  })
+  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
+  @ApiParam({
+    name: 'tableId',
+    type: String,
+    example: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
+  })
+  @ApiParam({
+    name: 'code',
+    type: String,
+    example: '8bca983a',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Order found successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Order not found',
+  })
+  @Get('public/tables/:tableId/by-code/:code')
+  findPublicOrderByCode(
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @Param('tableId') tableId: string,
+    @Param('code') code: string,
+  ) {
+    return this.ordersService.findPublicOrderByCode(
+      restaurantId,
+      tableId,
+      code,
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Get public order details by id',
+    description:
+      'Public endpoint to fetch full order details for currently selected table.',
+  })
+  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
+  @ApiParam({
+    name: 'tableId',
+    type: String,
+    example: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
+  })
+  @ApiParam({
+    name: 'orderId',
+    type: String,
+    example: '8bca983a-8101-41da-b7dd-f3caeb343cf0',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Order details fetched successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Order not found',
+  })
+  @Get('public/tables/:tableId/:orderId')
+  getPublicOrderById(
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @Param('tableId') tableId: string,
+    @Param('orderId') orderId: string,
+  ) {
+    return this.ordersService.getPublicOrderById(
+      restaurantId,
+      tableId,
+      orderId,
+    );
+  }
+
   @ApiOperation({ summary: 'Create order' })
   @ApiCookieAuth('gustio_session')
   @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
