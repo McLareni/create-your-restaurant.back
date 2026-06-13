@@ -38,7 +38,7 @@ export class UsersService {
     const existingUser = await this.prismaService.user.findFirst({
       where: {
         email,
-        restaurantId: null,
+        role: EnumRole.OWNER,
       },
     });
 
@@ -82,7 +82,7 @@ export class UsersService {
     const user = await this.prismaService.user.findFirst({
       where: {
         email,
-        restaurantId: null,
+        role: EnumRole.OWNER,
       },
     });
 

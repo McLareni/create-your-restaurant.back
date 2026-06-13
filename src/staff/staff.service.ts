@@ -44,7 +44,6 @@ export class StaffService {
       where: { id: restaurantId, ownerId: userId },
       select: { activeModules: true },
     });
-
     if (!restaurant) {
       throw new NotFoundException('Restaurant not found');
     }
@@ -76,7 +75,6 @@ export class StaffService {
         module: 'staff',
       },
     ];
-
     return allPermissions
       .filter((perm) => restaurant.activeModules.includes(perm.module))
       .map(({ id, label }) => ({ id, label }));
@@ -91,7 +89,6 @@ export class StaffService {
       where: { id: restaurantId, ownerId: userId },
       select: { id: true },
     });
-
     if (!restaurant) {
       throw new NotFoundException('Restaurant not found');
     }
@@ -105,7 +102,6 @@ export class StaffService {
         },
       },
     });
-
     if (existingRole) {
       throw new BadRequestException('Role already exists in this restaurant');
     }
@@ -123,7 +119,6 @@ export class StaffService {
       where: { id: restaurantId, ownerId: userId },
       select: { id: true },
     });
-
     if (!restaurant) {
       throw new NotFoundException('Restaurant not found');
     }
@@ -142,15 +137,13 @@ export class StaffService {
         restaurant: { ownerId: userId },
       },
     });
-
     if (!role) {
       throw new NotFoundException('Role not found');
     }
 
     const isRoleUsed = await this.prismaService.user.findFirst({
-      where: { restaurantId, role: EnumRole.STAFF },
+      where: { restaurantId, customRole: role.name },
     });
-
     if (isRoleUsed) {
       throw new BadRequestException(
         'Cannot delete role because it is assigned to staff members',
@@ -160,7 +153,6 @@ export class StaffService {
     await this.prismaService.staffRole.delete({
       where: { id: roleId },
     });
-
     return { message: 'Role deleted successfully' };
   }
 
@@ -173,7 +165,6 @@ export class StaffService {
       where: { id: restaurantId, ownerId: userId },
       select: { id: true },
     });
-
     if (!restaurant) {
       throw new NotFoundException('Restaurant not found');
     }
@@ -181,7 +172,6 @@ export class StaffService {
     const roleExists = await this.prismaService.staffRole.findFirst({
       where: { restaurantId, name: createStaffDto.role },
     });
-
     if (!roleExists) {
       throw new BadRequestException(
         'The assigned role does not exist in this restaurant',
@@ -194,7 +184,6 @@ export class StaffService {
         restaurantId,
       },
     });
-
     if (existingUser) {
       throw new BadRequestException(
         'User with this email already exists in this restaurant',
@@ -204,7 +193,6 @@ export class StaffService {
     const passwordHash = createStaffDto.password
       ? await hash(createStaffDto.password, 10)
       : null;
-
     const newUser = await this.prismaService.user.create({
       data: {
         restaurantId,
@@ -219,7 +207,6 @@ export class StaffService {
         pinCode: passwordHash,
       },
     });
-
     return {
       message: 'Staff member created successfully',
       staff: this.mapToUiStaff(newUser),
@@ -231,7 +218,6 @@ export class StaffService {
       where: { id: restaurantId, ownerId: userId },
       select: { id: true },
     });
-
     if (!restaurant) {
       throw new NotFoundException('Restaurant not found');
     }
@@ -240,7 +226,6 @@ export class StaffService {
       where: { restaurantId },
       orderBy: { createdAt: 'asc' },
     });
-
     return users.map((user) => this.mapToUiStaff(user));
   }
 
@@ -262,14 +247,12 @@ export class StaffService {
         staffRestaurant: { is: { ownerId: userId } },
       },
     });
-
     if (!staff) {
       throw new NotFoundException('Staff member not found');
     }
 
     const { firstName, lastName, email, phone, role, isActive, password } =
       updateStaffDto;
-
     if (email !== undefined && email !== staff.email) {
       const emailTaken = await this.prismaService.user.findFirst({
         where: {
@@ -277,7 +260,6 @@ export class StaffService {
           restaurantId,
         },
       });
-
       if (emailTaken) {
         throw new BadRequestException(
           'User with this email already exists in this restaurant',
@@ -289,7 +271,6 @@ export class StaffService {
       const roleExists = await this.prismaService.staffRole.findFirst({
         where: { restaurantId, name: role },
       });
-
       if (!roleExists) {
         throw new BadRequestException(
           'The assigned role does not exist in this restaurant',
@@ -298,7 +279,6 @@ export class StaffService {
     }
 
     const passwordHash = password ? await hash(password, 10) : undefined;
-
     const updatedUser = await this.prismaService.user.update({
       where: { id: numericId },
       data: {
@@ -312,7 +292,6 @@ export class StaffService {
         ...(passwordHash !== undefined && { pinCode: passwordHash }),
       },
     });
-
     return {
       message: 'Staff member updated successfully',
       staff: this.mapToUiStaff(updatedUser),
@@ -332,7 +311,6 @@ export class StaffService {
         staffRestaurant: { is: { ownerId: userId } },
       },
     });
-
     if (!staff) {
       throw new NotFoundException('Staff member not found');
     }
@@ -366,7 +344,6 @@ export class StaffService {
         staffRestaurant: { is: { ownerId: userId } },
       },
     });
-
     if (!staff) {
       throw new NotFoundException('Staff member not found');
     }
@@ -375,12 +352,10 @@ export class StaffService {
       file.buffer,
       'staff',
     );
-
     const updatedUser = await this.prismaService.user.update({
       where: { id: numericId },
       data: { photo: uploaded.secure_url },
     });
-
     return {
       message: 'Staff photo updated successfully',
       staff: this.mapToUiStaff(updatedUser),
