@@ -34,7 +34,6 @@ export class CombosService {
 
   async create(restaurantId: number, dto: CreateComboDto, userId: number) {
     await this.checkAccess(restaurantId, userId);
-
     const dishIds = dto.dishes.map((d) => d.id);
     const dbDishes = await this.prisma.dish.findMany({
       where: {
@@ -42,14 +41,11 @@ export class CombosService {
         category: { restaurantId },
       },
     });
-
     if (dbDishes.length !== new Set(dishIds).size) {
       throw new BadRequestException(
         'Some dishes are invalid or do not belong to this restaurant',
       );
     }
-
-    const dbDishMap = new Map(dbDishes.map((d) => [d.id, d]));
 
     return this.prisma.$transaction(async (tx) => {
       return tx.combo.create({
@@ -59,14 +55,9 @@ export class CombosService {
           priceType: dto.priceType,
           priceValue: dto.priceValue,
           dishes: {
-            create: dto.dishes.map((d) => {
-              const originalDish = dbDishMap.get(d.id)!;
-              return {
-                dishId: originalDish.id,
-                name: originalDish.name,
-                price: originalDish.price,
-              };
-            }),
+            create: dto.dishes.map((d) => ({
+              dishId: d.id,
+            })),
           },
         },
         include: {
@@ -83,13 +74,11 @@ export class CombosService {
     userId: number,
   ) {
     await this.checkAccess(restaurantId, userId);
-
     const combo = await this.prisma.combo.findFirst({
       where: { id, restaurantId },
     });
     if (!combo) throw new NotFoundException('Combo pack not found');
 
-    let dbDishMap: Map<string, any> | null = null;
     if (dto.dishes) {
       const dishIds = dto.dishes.map((d) => d.id);
       const dbDishes = await this.prisma.dish.findMany({
@@ -98,13 +87,11 @@ export class CombosService {
           category: { restaurantId },
         },
       });
-
       if (dbDishes.length !== new Set(dishIds).size) {
         throw new BadRequestException(
           'Some dishes are invalid or do not belong to this restaurant',
         );
       }
-      dbDishMap = new Map(dbDishes.map((d) => [d.id, d]));
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -118,19 +105,13 @@ export class CombosService {
           name: dto.name,
           priceType: dto.priceType,
           priceValue: dto.priceValue,
-          ...(dto.dishes &&
-            dbDishMap && {
-              dishes: {
-                create: dto.dishes.map((d) => {
-                  const originalDish = dbDishMap.get(d.id)!;
-                  return {
-                    dishId: originalDish.id,
-                    name: originalDish.name,
-                    price: originalDish.price,
-                  };
-                }),
-              },
-            }),
+          ...(dto.dishes && {
+            dishes: {
+              create: dto.dishes.map((d) => ({
+                dishId: d.id,
+              })),
+            },
+          }),
         },
         include: {
           dishes: true,
@@ -141,7 +122,6 @@ export class CombosService {
 
   async delete(restaurantId: number, id: string, userId: number) {
     await this.checkAccess(restaurantId, userId);
-
     const combo = await this.prisma.combo.findFirst({
       where: { id, restaurantId },
     });

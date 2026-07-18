@@ -15,9 +15,15 @@ import { Prisma } from '@prisma/client';
 export class InventoryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async checkAccess(restaurantId: number, userId: number) {
+  private async checkAccess(
+    restaurantId: number,
+    userId: number,
+  ): Promise<void> {
     const restaurant = await this.prisma.restaurant.findFirst({
-      where: { id: restaurantId, ownerId: userId },
+      where: {
+        id: restaurantId,
+        ownerId: userId,
+      },
     });
     if (!restaurant) {
       throw new ForbiddenException('Access to this restaurant is denied');
@@ -67,41 +73,68 @@ export class InventoryService {
     userId: number,
   ) {
     await this.checkAccess(restaurantId, userId);
-
     const item = await this.prisma.inventoryItem.findFirst({
       where: { id, restaurantId },
     });
-    if (!item) throw new NotFoundException('Inventory item not found');
-
-    const updatedItem = await this.prisma.inventoryItem.update({
-      where: { id },
-      data: dto,
-    });
-
-    const affectedIngredients = await this.prisma.dishIngredient.findMany({
-      where: { inventoryItemId: id },
-      select: { dishId: true, quantity: true },
-    });
-
-    for (const ing of affectedIngredients) {
-      await this.prisma.dish.update({
-        where: { id: ing.dishId },
-        data: {
-          isAvailable: updatedItem.stock >= ing.quantity,
-        },
-      });
+    if (!item) {
+      throw new NotFoundException('Inventory item not found');
     }
 
-    return updatedItem;
+    return await this.prisma.$transaction(async (tx) => {
+      const updatedItem = await tx.inventoryItem.update({
+        where: { id },
+        data: dto,
+      });
+
+      const affectedIngredients = await tx.dishIngredient.findMany({
+        where: { inventoryItemId: id },
+        select: { dishId: true },
+      });
+
+      const uniqueDishIds = Array.from(
+        new Set(affectedIngredients.map((ing) => ing.dishId)),
+      );
+
+      for (const dishId of uniqueDishIds) {
+        const allIngredientsForDish = await tx.dishIngredient.findMany({
+          where: { dishId },
+        });
+
+        let canBeMade = true;
+        for (const ing of allIngredientsForDish) {
+          if (ing.inventoryItemId) {
+            const stockItem =
+              ing.inventoryItemId === id
+                ? updatedItem
+                : await tx.inventoryItem.findUnique({
+                    where: { id: ing.inventoryItemId },
+                  });
+
+            if (!stockItem || stockItem.stock < ing.quantity) {
+              canBeMade = false;
+              break;
+            }
+          }
+        }
+
+        await tx.dish.update({
+          where: { id: dishId },
+          data: { isAvailable: canBeMade },
+        });
+      }
+
+      return updatedItem;
+    });
   }
 
   async delete(restaurantId: number, id: string, userId: number) {
     await this.checkAccess(restaurantId, userId);
-
     const item = await this.prisma.inventoryItem.findFirst({
       where: { id, restaurantId },
     });
-    if (!item) throw new NotFoundException('Inventory item not found');
+    if (!item) {
+      throw new NotFoundException('Inventory item not found');
+    }
 
     await this.prisma.inventoryItem.delete({ where: { id } });
     return { message: 'Inventory item deleted successfully' };

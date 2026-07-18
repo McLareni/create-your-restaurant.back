@@ -1,5 +1,5 @@
 import { ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min, IsArray } from 'class-validator';
 import { CreateDishDto } from './create-dish.dto';
 
 export class UpdateDishDto extends PartialType(CreateDishDto) {
@@ -13,4 +13,16 @@ export class UpdateDishDto extends PartialType(CreateDishDto) {
   @IsInt()
   @Min(0)
   sortOrder?: number;
+
+  @ApiPropertyOptional({ type: [String], example: ['gluten', 'lactose'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  override allergens?: string[];
+
+  @ApiPropertyOptional({ type: [String], example: ['ВЕГАН', 'ГОСТРЕ'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  override tags?: string[];
 }

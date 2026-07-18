@@ -141,19 +141,24 @@ export class StaffService {
       throw new NotFoundException('Role not found');
     }
 
-    const isRoleUsed = await this.prismaService.user.findFirst({
-      where: { restaurantId, customRole: role.name },
-    });
-    if (isRoleUsed) {
-      throw new BadRequestException(
-        'Cannot delete role because it is assigned to staff members',
-      );
-    }
+    return this.prismaService.$transaction(async (tx) => {
+      await tx.user.updateMany({
+        where: {
+          restaurantId,
+          customRole: role.name,
+        },
+        data: {
+          customRole: null,
+          role: EnumRole.STAFF,
+        },
+      });
 
-    await this.prismaService.staffRole.delete({
-      where: { id: roleId },
+      await tx.staffRole.delete({
+        where: { id: roleId },
+      });
+
+      return { message: 'Role deleted successfully and staff reassigned' };
     });
-    return { message: 'Role deleted successfully' };
   }
 
   async createStaff(
@@ -169,13 +174,15 @@ export class StaffService {
       throw new NotFoundException('Restaurant not found');
     }
 
-    const roleExists = await this.prismaService.staffRole.findFirst({
-      where: { restaurantId, name: createStaffDto.role },
-    });
-    if (!roleExists) {
-      throw new BadRequestException(
-        'The assigned role does not exist in this restaurant',
-      );
+    if (createStaffDto.role !== 'STAFF') {
+      const roleExists = await this.prismaService.staffRole.findFirst({
+        where: { restaurantId, name: createStaffDto.role },
+      });
+      if (!roleExists) {
+        throw new BadRequestException(
+          'The assigned role does not exist in this restaurant',
+        );
+      }
     }
 
     const existingUser = await this.prismaService.user.findFirst({
@@ -267,7 +274,7 @@ export class StaffService {
       }
     }
 
-    if (role !== undefined) {
+    if (role !== undefined && role !== 'STAFF') {
       const roleExists = await this.prismaService.staffRole.findFirst({
         where: { restaurantId, name: role },
       });

@@ -94,14 +94,6 @@ export class PosService {
     private readonly adapterFactory: PosAdapterFactory,
   ) {}
 
-  private chunkArray<T>(array: T[], size: number): T[][] {
-    const chunks: T[][] = [];
-    for (let i = 0; i < array.length; i += size) {
-      chunks.push(array.slice(i, i + size));
-    }
-    return chunks;
-  }
-
   async getStatus(restaurantId: number, userId: number) {
     const restaurant = await this.prisma.restaurant.findFirst({
       where: { id: restaurantId, ownerId: userId },
@@ -113,7 +105,6 @@ export class PosService {
     const posSettings = await this.prisma.posIntegration.findUnique({
       where: { restaurantId },
     });
-
     if (!posSettings) {
       return {
         isConnected: false,
@@ -193,7 +184,6 @@ export class PosService {
     const posSettings = await this.prisma.posIntegration.findUnique({
       where: { restaurantId },
     });
-
     if (!posSettings || !posSettings.apiKey) {
       throw new BadRequestException('POS integration not configured');
     }
@@ -204,61 +194,58 @@ export class PosService {
     let categoriesCreated = 0;
     let dishesCreated = 0;
 
-    const categoryChunks = this.chunkArray<PosMenuCategory>(externalMenu, 50);
-    for (const chunk of categoryChunks) {
-      await this.prisma.$transaction(async (tx) => {
-        for (const cat of chunk) {
-          let existingCategory = await tx.category.findFirst({
-            where: { restaurantId, name: cat.category_name },
-          });
+    const existingCategories = await this.prisma.category.findMany({
+      where: { restaurantId },
+      include: {
+        dishes: {
+          select: { name: true },
+        },
+      },
+    });
 
-          if (!existingCategory) {
-            const categoryCount = await tx.category.count({
-              where: { restaurantId },
-            });
-            existingCategory = await tx.category.create({
-              data: {
-                restaurantId,
-                name: cat.category_name,
-                sortOrder: categoryCount,
-              },
-            });
-            categoriesCreated++;
-          }
+    const categoryMap = new Map(existingCategories.map((c) => [c.name, c]));
 
-          const dishChunks = this.chunkArray<PosMenuDish>(cat.dishes, 100);
-          for (const dishChunk of dishChunks) {
-            for (const dish of dishChunk) {
-              const existingDish = await tx.dish.findFirst({
-                where: { categoryId: existingCategory.id, name: dish.name },
-              });
+    for (const cat of externalMenu) {
+      let category = categoryMap.get(cat.category_name);
 
-              if (!existingDish) {
-                const dishCount = await tx.dish.count({
-                  where: { categoryId: existingCategory.id },
-                });
-                await tx.dish.create({
-                  data: {
-                    categoryId: existingCategory.id,
-                    name: dish.name,
-                    description: dish.description,
-                    price: dish.price,
-                    weight: dish.weight,
-                    cookingTime: dish.cookingTime,
-                    calories: dish.calories,
-                    isAvailable: true,
-                    sortOrder: dishCount,
-                    badge: BadgeType.NONE,
-                  },
-                });
-                dishesCreated++;
-              }
-            }
-          }
-        }
-      });
+      if (!category) {
+        const currentCount = categoryMap.size;
+        category = await this.prisma.category.create({
+          data: {
+            restaurantId,
+            name: cat.category_name,
+            sortOrder: currentCount,
+          },
+          include: { dishes: true },
+        });
+        categoryMap.set(cat.category_name, category);
+        categoriesCreated++;
+      }
 
-      await new Promise((resolve) => setImmediate(resolve));
+      const existingDishNames = new Set(
+        category.dishes?.map((d) => d.name) || [],
+      );
+      const newDishesData = cat.dishes
+        .filter((d) => !existingDishNames.has(d.name))
+        .map((d, index) => ({
+          categoryId: category.id,
+          name: d.name,
+          description: d.description,
+          price: d.price,
+          weight: d.weight ?? null,
+          cookingTime: d.cookingTime ?? null,
+          calories: d.calories ?? null,
+          isAvailable: true,
+          sortOrder: existingDishNames.size + index,
+          badge: BadgeType.NONE,
+        }));
+
+      if (newDishesData.length > 0) {
+        await this.prisma.dish.createMany({
+          data: newDishesData,
+        });
+        dishesCreated += newDishesData.length;
+      }
     }
 
     return {

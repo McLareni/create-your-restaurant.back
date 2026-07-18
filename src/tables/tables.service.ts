@@ -1,10 +1,10 @@
-// src/tables/tables.service.ts
 import {
   Injectable,
   ConflictException,
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTableDto } from './dto/create-table.dto';
 import { UpdateTableDto } from './dto/update-table.dto';
@@ -27,32 +27,31 @@ export class TablesService {
     return this.prismaService.diningTable.findMany({
       where: { restaurantId },
       orderBy: { number: 'asc' },
+      take: 100,
     });
   }
 
   async create(restaurantId: number, dto: CreateTableDto, userId: number) {
     await this.checkAccess(restaurantId, userId);
-
-    const exists = await this.prismaService.diningTable.findFirst({
-      where: {
-        number: Number(dto.number),
-        restaurantId,
-      },
-    });
-
-    if (exists) {
-      throw new ConflictException('Table with this number already exists');
+    try {
+      return await this.prismaService.diningTable.create({
+        data: {
+          number: Number(dto.number),
+          type: dto.type,
+          status: dto.status || 'INACTIVE',
+          restaurantId,
+          zone: dto.zone || null,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Table with this number already exists');
+      }
+      throw error;
     }
-
-    return this.prismaService.diningTable.create({
-      data: {
-        number: Number(dto.number),
-        type: dto.type,
-        status: dto.status || 'INACTIVE',
-        restaurantId,
-        zone: dto.zone || null,
-      },
-    });
   }
 
   async update(
@@ -62,66 +61,52 @@ export class TablesService {
     userId: number,
   ) {
     await this.checkAccess(restaurantId, userId);
-
     const table = await this.prismaService.diningTable.findUnique({
       where: { id },
     });
-
     if (!table || table.restaurantId !== restaurantId) {
       throw new NotFoundException('Table not found');
     }
-
-    if (dto.number !== undefined) {
-      const targetNumber = Number(dto.number);
-      if (targetNumber !== table.number) {
-        const exists = await this.prismaService.diningTable.findFirst({
-          where: { number: targetNumber, restaurantId },
-        });
-        if (exists) {
-          throw new ConflictException('Table with this number already exists');
-        }
+    try {
+      return await this.prismaService.diningTable.update({
+        where: { id },
+        data: {
+          ...(dto.number !== undefined && { number: Number(dto.number) }),
+          ...(dto.type !== undefined && { type: dto.type }),
+          ...(dto.status !== undefined && { status: dto.status }),
+          ...(dto.zone !== undefined && { zone: dto.zone }),
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Table with this number already exists');
       }
+      throw error;
     }
-
-    return this.prismaService.diningTable.update({
-      where: { id },
-      data: {
-        ...(dto.number !== undefined && { number: Number(dto.number) }),
-        ...(dto.type !== undefined && { type: dto.type }),
-        ...(dto.status !== undefined && { status: dto.status }),
-        ...(dto.zone !== undefined && { zone: dto.zone }),
-      },
-    });
   }
 
   async delete(restaurantId: number, id: string, userId: number) {
     await this.checkAccess(restaurantId, userId);
-
     const table = await this.prismaService.diningTable.findUnique({
       where: { id },
     });
-
     if (!table || table.restaurantId !== restaurantId) {
       throw new NotFoundException('Table not found');
     }
-
     await this.prismaService.diningTable.delete({
       where: { id },
     });
-
     return { success: true };
   }
 
   async checkPublicTableExists(restaurantId: number, id: string) {
     const table = await this.prismaService.diningTable.findFirst({
-      where: {
-        id,
-        restaurantId,
-        status: 'ACTIVE',
-      },
+      where: { id, restaurantId, status: 'ACTIVE' },
       select: { id: true },
     });
-
     return { exists: Boolean(table) };
   }
 }

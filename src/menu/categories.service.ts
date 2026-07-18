@@ -3,7 +3,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { ReorderCategoriesDto } from './dto/reorder-categories.dto';
-import { BadgeType } from '@prisma/client';
 
 @Injectable()
 export class CategoriesService {
@@ -20,69 +19,8 @@ export class CategoriesService {
     const category = await this.prismaService.category.create({
       data: {
         restaurantId: createCategoryDto.restaurantId,
-        name: createCategoryDto.name,
+        name: createCategoryDto.name.trim(),
         sortOrder: createCategoryDto.sortOrder ?? 0,
-        dishes: {
-          create: (createCategoryDto.dishes ?? []).map((dish) => {
-            const {
-              ingredients,
-              modifierIds,
-              upsellDishIds,
-              ...dishData
-            } = dish;
-            const tagNames = dishData.tags ?? [];
-            const allergenNames = dishData.allergens ?? [];
-            return {
-              name: dishData.name,
-              description: dishData.description || '',
-              price: dishData.price,
-              weight: dishData.weight ?? null,
-              cookingTime: dishData.cookingTime ?? null,
-              calories: dishData.calories ?? null,
-              isVegan: dishData.isVegan ?? false,
-              isSpicy: dishData.isSpicy ?? false,
-              isLactoseFree: dishData.isLactoseFree ?? false,
-              badge: (dishData.badge as BadgeType) || BadgeType.NONE,
-              isAvailable: dishData.isAvailable ?? true,
-              allergens: allergenNames.length
-                ? {
-                    connectOrCreate: allergenNames.map((name) => ({
-                      where: {
-                        restaurantId_name: {
-                          restaurantId: createCategoryDto.restaurantId,
-                          name,
-                        },
-                      },
-                      create: {
-                        restaurantId: createCategoryDto.restaurantId,
-                        name,
-                      },
-                    })),
-                  }
-                : undefined,
-              tags: tagNames.length
-                ? {
-                    connectOrCreate: tagNames.map((name) => ({
-                      where: {
-                        restaurantId_name: {
-                          restaurantId: createCategoryDto.restaurantId,
-                          name,
-                        },
-                      },
-                      create: {
-                        restaurantId: createCategoryDto.restaurantId,
-                        name,
-                      },
-                    })),
-                  }
-                : undefined,
-              ingredients: { create: ingredients ?? [] },
-            };
-          }),
-        },
-      },
-      include: {
-        dishes: { include: { ingredients: true, allergens: true, tags: true } },
       },
     });
 
@@ -94,7 +32,6 @@ export class CategoriesService {
     userId: number,
   ) {
     const categoryIds = reorderCategoriesDto.items.map((i) => i.id);
-
     const categories = await this.prismaService.category.findMany({
       where: {
         id: { in: categoryIds },
@@ -133,7 +70,12 @@ export class CategoriesService {
 
     const updatedCategory = await this.prismaService.category.update({
       where: { id: categoryId },
-      data: updateCategoryDto,
+      data: {
+        name: updateCategoryDto.name
+          ? updateCategoryDto.name.trim()
+          : undefined,
+        sortOrder: updateCategoryDto.sortOrder,
+      },
     });
 
     return {
@@ -150,7 +92,9 @@ export class CategoriesService {
 
     if (!category) throw new NotFoundException('Category not found');
 
-    await this.prismaService.category.delete({ where: { id: categoryId } });
+    await this.prismaService.category.delete({
+      where: { id: categoryId },
+    });
 
     return { message: 'Category deleted successfully' };
   }
