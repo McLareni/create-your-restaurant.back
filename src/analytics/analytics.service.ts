@@ -16,23 +16,34 @@ export class AnalyticsService {
   async getSummary(restaurantId: number, userId: number) {
     await this.checkAccess(restaurantId, userId);
 
-    const completedOrders = await this.prisma.order.findMany({
+    const aggregateResult = await this.prisma.order.aggregate({
       where: { restaurantId, status: OrderStatus.COMPLETED },
-      include: { items: { include: { dish: true } } },
+      _sum: { totalAmount: true },
+      _count: { id: true },
     });
 
-    const totalRevenue = completedOrders.reduce(
-      (sum, o) => sum + o.totalAmount,
-      0,
-    );
-    const totalOrders = completedOrders.length;
+    const totalRevenue = aggregateResult._sum.totalAmount || 0;
+    const totalOrders = aggregateResult._count.id || 0;
     const averageCheck = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const recentOrders = await this.prisma.order.findMany({
+      where: {
+        restaurantId,
+        status: OrderStatus.COMPLETED,
+        createdAt: { gte: sevenDaysAgo },
+      },
+      include: { items: { include: { dish: true } } },
+    });
 
     const dishCounts: Record<
       string,
       { name: string; count: number; revenue: number }
     > = {};
-    for (const order of completedOrders) {
+    for (const order of recentOrders) {
       for (const item of order.items) {
         if (!dishCounts[item.dishId]) {
           dishCounts[item.dishId] = {
@@ -58,14 +69,12 @@ export class AnalyticsService {
         day: '2-digit',
         month: '2-digit',
       });
-
       const startOfDay = new Date(d.setHours(0, 0, 0, 0));
       const endOfDay = new Date(d.setHours(23, 59, 59, 999));
 
-      const dayOrders = completedOrders.filter(
+      const dayOrders = recentOrders.filter(
         (o) => o.createdAt >= startOfDay && o.createdAt <= endOfDay,
       );
-
       const revenue = dayOrders.reduce((sum, o) => sum + o.totalAmount, 0);
       chartData.push({ date: dateString, revenue });
     }

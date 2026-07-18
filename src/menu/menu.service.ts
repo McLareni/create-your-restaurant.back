@@ -183,9 +183,7 @@ export class MenuService {
   }
 
   async create(createMenuDto: CreateMenuDto, userId: number) {
-    const prisma = this.prismaService;
-
-    const restaurant = await prisma.restaurant.findFirst({
+    const restaurant = await this.prismaService.restaurant.findFirst({
       where: {
         id: createMenuDto.restaurantId,
         ownerId: userId,
@@ -197,18 +195,19 @@ export class MenuService {
     }
 
     let dishesCreated = 0;
+    createMenuDto.categories.forEach((cat) => {
+      dishesCreated += cat.dishes?.length || 0;
+    });
 
-    await prisma.$transaction(async (transactionClient) => {
-      for (const category of createMenuDto.categories) {
-        dishesCreated += category.dishes.length;
-
-        await transactionClient.category.create({
-          data: {
-            restaurantId: createMenuDto.restaurantId,
+    await this.prismaService.restaurant.update({
+      where: { id: createMenuDto.restaurantId },
+      data: {
+        categories: {
+          create: createMenuDto.categories.map((category) => ({
             name: category.name,
             sortOrder: category.sortOrder ?? 0,
             dishes: {
-              create: category.dishes.map((dish) => ({
+              create: (category.dishes || []).map((dish) => ({
                 name: dish.name,
                 description: dish.description ?? '',
                 price: dish.price,
@@ -238,9 +237,9 @@ export class MenuService {
                   : undefined,
               })),
             },
-          },
-        });
-      }
+          })),
+        },
+      },
     });
 
     return {

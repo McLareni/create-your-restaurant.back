@@ -10,9 +10,15 @@ import {
   MaxLength,
   Min,
   ValidateNested,
+  IsUUID,
 } from 'class-validator';
 
 export class CreateModifierOptionDto {
+  @ApiPropertyOptional({ example: '8eebf4f4-40aa-4dd0-b7d4-1a58ec4a9e89' })
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @ApiProperty({ example: 'Екстра сир' })
   @IsString()
   @IsNotEmpty()
