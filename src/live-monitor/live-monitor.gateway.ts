@@ -111,6 +111,19 @@ export class LiveMonitorGateway implements OnGatewayConnection {
     return `restaurant:${restaurantId}`;
   }
 
+  private extractAuthToken(client: Socket) {
+    const authToken = client.handshake.auth?.token;
+
+    if (typeof authToken === 'string' && authToken.trim().length > 0) {
+      return authToken.trim();
+    }
+
+    return this.extractCookieValue(
+      client.handshake.headers.cookie,
+      'gustio_session',
+    );
+  }
+
   private extractCookieValue(cookieHeader: string | undefined, key: string) {
     if (!cookieHeader) return null;
     const keyValue = cookieHeader
