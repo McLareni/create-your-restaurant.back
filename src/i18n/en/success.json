@@ -1,0 +1,22 @@
+{
+  "inventory_item_deleted": "Ingredient removed from inventory",
+  "category_created": "Category successfully created",
+  "categories_reordered": "Category order saved",
+  "category_updated": "Category updated",
+  "category_deleted": "Category deleted",
+  "photos_updated": "Photos updated",
+  "dishes_reordered": "Dish order saved",
+  "dish_deleted": "Dish deleted",
+  "items_appended": "Items added to order",
+  "waiter_called": "Waiter called to your table",
+  "order_created": "Order successfully created",
+  "order_updated": "Order updated",
+  "order_deleted": "Order deleted",
+  "restaurant_created": "Restaurant successfully created",
+  "restaurant_deleted": "Restaurant deleted",
+  "role_deleted": "Role deleted",
+  "staff_created": "Staff member added",
+  "staff_updated": "Staff details updated",
+  "staff_deleted": "Staff member deleted",
+  "photo_uploaded": "Photo uploaded"
+}

@@ -10,57 +10,31 @@ import {
   Post,
   Query,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBody,
   ApiCookieAuth,
   ApiOperation,
   ApiParam,
-  ApiQuery,
-  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { OrderStatus } from '@prisma/client';
-import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
-import { AppendOrderItemsDto } from './dto/append-order-items.dto';
-import { CreateOrderDto } from './dto/create-order.dto';
-import { UpdateOrderDto } from './dto/update-order.dto';
-import { OrdersService } from './orders.service';
+import { OrdersService } from 'src/orders/orders.service';
+import { CreateOrderDto } from 'src/orders/dto/create-order.dto';
+import { AppendOrderItemsDto } from 'src/orders/dto/append-order-items.dto';
+import { UpdateOrderDto } from 'src/orders/dto/update-order.dto';
+import { PermissionsGuard } from 'src/guards/permissions.guard';
+import { RequirePermission } from 'src/guards/permission.decorator';
+import type { AuthenticatedRequest } from 'src/restaurants/middleware/session-auth.middleware';
+import { PERMISSIONS } from 'src/common/constants/permissions.constants';
 
 @ApiTags('Orders')
 @Controller('restaurants/:restaurantId/orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
-  @ApiOperation({
-    summary: 'Create public dine-in order by table QR',
-    description:
-      'Public endpoint for guest orders from customer menu. Requires valid active tableId.',
-  })
+  @ApiOperation({ summary: 'Create public dine-in order by table QR' })
   @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
-  @ApiBody({
-    type: CreateOrderDto,
-    schema: {
-      example: {
-        type: 'DINE_IN',
-        tableId: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-        items: [
-          {
-            dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
-            quantity: 2,
-          },
-        ],
-      },
-    },
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Public order created successfully',
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid order payload or inactive table',
-  })
   @Post('public')
   createPublicOrder(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
@@ -69,38 +43,7 @@ export class OrdersController {
     return this.ordersService.createPublicOrder(restaurantId, createOrderDto);
   }
 
-  @ApiOperation({
-    summary: 'Append items to existing public order',
-    description:
-      'Public endpoint for guests to add more items to an existing active order.',
-  })
-  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
-  @ApiParam({
-    name: 'orderId',
-    type: String,
-    example: '8bca983a-8101-41da-b7dd-f3caeb343cf0',
-  })
-  @ApiBody({
-    type: AppendOrderItemsDto,
-    schema: {
-      example: {
-        items: [
-          {
-            dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
-            quantity: 1,
-          },
-        ],
-      },
-    },
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Items appended to order successfully',
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid payload or order is not editable',
-  })
+  @ApiOperation({ summary: 'Append items to existing public order' })
   @Post('public/:orderId/items')
   appendItemsToPublicOrder(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
@@ -114,25 +57,7 @@ export class OrdersController {
     );
   }
 
-  @ApiOperation({
-    summary: 'Call waiter from public table menu',
-    description:
-      'Public endpoint for guests to notify staff from table QR menu.',
-  })
-  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
-  @ApiParam({
-    name: 'tableId',
-    type: String,
-    example: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Waiter call sent successfully',
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Table is inactive or does not belong to restaurant',
-  })
+  @ApiOperation({ summary: 'Call waiter from public table menu' })
   @Post('public/tables/:tableId/call-waiter')
   callWaiterFromPublicMenu(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
@@ -141,30 +66,7 @@ export class OrdersController {
     return this.ordersService.callWaiterFromPublicMenu(restaurantId, tableId);
   }
 
-  @ApiOperation({
-    summary: 'Find public order by short code',
-    description:
-      'Public endpoint to resolve full order id by short code for current table.',
-  })
-  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
-  @ApiParam({
-    name: 'tableId',
-    type: String,
-    example: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-  })
-  @ApiParam({
-    name: 'code',
-    type: String,
-    example: '8bca983a',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Order found successfully',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Order not found',
-  })
+  @ApiOperation({ summary: 'Find public order by short code' })
   @Get('public/tables/:tableId/by-code/:code')
   findPublicOrderByCode(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
@@ -178,30 +80,7 @@ export class OrdersController {
     );
   }
 
-  @ApiOperation({
-    summary: 'Get public order details by id',
-    description:
-      'Public endpoint to fetch full order details for currently selected table.',
-  })
-  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
-  @ApiParam({
-    name: 'tableId',
-    type: String,
-    example: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-  })
-  @ApiParam({
-    name: 'orderId',
-    type: String,
-    example: '8bca983a-8101-41da-b7dd-f3caeb343cf0',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Order details fetched successfully',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Order not found',
-  })
+  @ApiOperation({ summary: 'Get public order details by id' })
   @Get('public/tables/:tableId/:orderId')
   getPublicOrderById(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
@@ -217,75 +96,8 @@ export class OrdersController {
 
   @ApiOperation({ summary: 'Create order' })
   @ApiCookieAuth('gustio_session')
-  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
-  @ApiBody({
-    type: CreateOrderDto,
-    schema: {
-      example: {
-        type: 'DINE_IN',
-        tableId: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-        items: [
-          {
-            dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
-            quantity: 2,
-            modifiers: [
-              {
-                modifierOptionId: '8eebf4f4-40aa-4dd0-b7d4-1a58ec4a9e89',
-                quantity: 3,
-              },
-            ],
-          },
-        ],
-      },
-    },
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Order created successfully',
-    schema: {
-      example: {
-        message: 'Order created successfully',
-        order: {
-          id: '8bca983a-8101-41da-b7dd-f3caeb343cf0',
-          restaurantId: 1,
-          tableId: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-          type: 'DINE_IN',
-          status: 'PENDING',
-          totalAmount: 980,
-          createdAt: '2026-05-20T12:00:00.000Z',
-          updatedAt: '2026-05-20T12:00:00.000Z',
-          table: {
-            id: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-            number: 12,
-            type: 'TERRACE',
-          },
-          items: [
-            {
-              id: 'item-1',
-              dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
-              dishName: 'Margherita',
-              quantity: 2,
-              unitPrice: 490,
-              lineTotal: 980,
-              modifiers: [
-                {
-                  id: 'item-mod-1',
-                  modifierOptionId: '8eebf4f4-40aa-4dd0-b7d4-1a58ec4a9e89',
-                  modifierName: 'Extra cheese',
-                  quantity: 3,
-                  unitPrice: 30,
-                  lineTotal: 90,
-                },
-              ],
-            },
-          ],
-        },
-      },
-    },
-  })
-  @ApiResponse({ status: 400, description: 'Invalid order data' })
-  @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
-  @ApiResponse({ status: 404, description: 'Restaurant not found' })
+  @UseGuards(PermissionsGuard)
+  @RequirePermission(PERMISSIONS.ORDERS_MANAGE)
   @Post()
   createOrder(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
@@ -301,51 +113,8 @@ export class OrdersController {
 
   @ApiOperation({ summary: 'Get restaurant orders' })
   @ApiCookieAuth('gustio_session')
-  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
-  @ApiQuery({
-    name: 'status',
-    enum: OrderStatus,
-    required: false,
-    description: 'Filter orders by status',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Orders list fetched successfully',
-    schema: {
-      example: [
-        {
-          id: '8bca983a-8101-41da-b7dd-f3caeb343cf0',
-          restaurantId: 1,
-          tableId: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-          type: 'DINE_IN',
-          status: 'PENDING',
-          totalAmount: 980,
-          items: [
-            {
-              id: 'item-1',
-              dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
-              dishName: 'Margherita',
-              quantity: 2,
-              unitPrice: 490,
-              lineTotal: 980,
-              modifiers: [
-                {
-                  id: 'item-mod-1',
-                  modifierOptionId: '8eebf4f4-40aa-4dd0-b7d4-1a58ec4a9e89',
-                  modifierName: 'Extra cheese',
-                  quantity: 3,
-                  unitPrice: 30,
-                  lineTotal: 90,
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  })
-  @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
-  @ApiResponse({ status: 404, description: 'Restaurant not found' })
+  @UseGuards(PermissionsGuard)
+  @RequirePermission(PERMISSIONS.ORDERS_READ)
   @Get()
   getOrders(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
@@ -358,48 +127,8 @@ export class OrdersController {
 
   @ApiOperation({ summary: 'Get order by ID' })
   @ApiCookieAuth('gustio_session')
-  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
-  @ApiParam({
-    name: 'orderId',
-    type: String,
-    example: '8bca983a-8101-41da-b7dd-f3caeb343cf0',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Order fetched successfully',
-    schema: {
-      example: {
-        id: '8bca983a-8101-41da-b7dd-f3caeb343cf0',
-        restaurantId: 1,
-        tableId: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-        type: 'DINE_IN',
-        status: 'PENDING',
-        totalAmount: 980,
-        items: [
-          {
-            id: 'item-1',
-            dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
-            dishName: 'Margherita',
-            quantity: 2,
-            unitPrice: 490,
-            lineTotal: 980,
-            modifiers: [
-              {
-                id: 'item-mod-1',
-                modifierOptionId: '8eebf4f4-40aa-4dd0-b7d4-1a58ec4a9e89',
-                modifierName: 'Extra cheese',
-                quantity: 3,
-                unitPrice: 30,
-                lineTotal: 90,
-              },
-            ],
-          },
-        ],
-      },
-    },
-  })
-  @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
-  @ApiResponse({ status: 404, description: 'Restaurant or order not found' })
+  @UseGuards(PermissionsGuard)
+  @RequirePermission(PERMISSIONS.ORDERS_READ)
   @Get(':orderId')
   getOrderById(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
@@ -415,36 +144,8 @@ export class OrdersController {
 
   @ApiOperation({ summary: 'Update order' })
   @ApiCookieAuth('gustio_session')
-  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
-  @ApiParam({
-    name: 'orderId',
-    type: String,
-    example: '8bca983a-8101-41da-b7dd-f3caeb343cf0',
-  })
-  @ApiBody({
-    type: UpdateOrderDto,
-    schema: {
-      example: {
-        status: 'IN_PROGRESS',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Order updated successfully',
-    schema: {
-      example: {
-        message: 'Order updated successfully',
-        order: {
-          id: '8bca983a-8101-41da-b7dd-f3caeb343cf0',
-          status: 'IN_PROGRESS',
-        },
-      },
-    },
-  })
-  @ApiResponse({ status: 400, description: 'Invalid update data' })
-  @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
-  @ApiResponse({ status: 404, description: 'Restaurant or order not found' })
+  @UseGuards(PermissionsGuard)
+  @RequirePermission(PERMISSIONS.ORDERS_MANAGE)
   @Patch(':orderId')
   updateOrder(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
@@ -462,15 +163,8 @@ export class OrdersController {
 
   @ApiOperation({ summary: 'Delete order' })
   @ApiCookieAuth('gustio_session')
-  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
-  @ApiParam({
-    name: 'orderId',
-    type: String,
-    example: '8bca983a-8101-41da-b7dd-f3caeb343cf0',
-  })
-  @ApiResponse({ status: 200, description: 'Order deleted successfully' })
-  @ApiResponse({ status: 401, description: 'Invalid or expired session token' })
-  @ApiResponse({ status: 404, description: 'Restaurant or order not found' })
+  @UseGuards(PermissionsGuard)
+  @RequirePermission(PERMISSIONS.ORDERS_MANAGE)
   @Delete(':orderId')
   deleteOrder(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,

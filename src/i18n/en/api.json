@@ -1,0 +1,14 @@
+{
+  "combos": {
+    "get_all": "Get all combos",
+    "create": "Create a combo",
+    "update": "Update combo",
+    "delete": "Delete combo"
+  },
+  "modifiers": {
+    "create_group": "Create modifier group",
+    "get_groups": "Get modifier groups",
+    "update_group": "Update modifier group",
+    "delete_group": "Delete modifier group"
+  }
+}

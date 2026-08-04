@@ -1,9 +1,10 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { SessionAuthMiddleware } from '../restaurants/middleware/session-auth.middleware';
-import { UsersModule } from '../users/users.module';
-import { PosController } from './pos.controller';
-import { PosService, PosAdapterFactory, PosterAdapter } from './pos.service';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { SessionAuthMiddleware } from 'src/restaurants/middleware/session-auth.middleware';
+import { UsersModule } from 'src/users/users.module';
+import { PosController } from 'src/pos/pos.controller';
+import { PosService } from 'src/pos/pos.service';
+import { PosAdapterFactory, PosterAdapter } from 'src/pos/adapters/pos.adapter';
 
 @Module({
   imports: [UsersModule],

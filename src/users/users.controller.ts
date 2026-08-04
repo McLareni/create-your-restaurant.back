@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -8,73 +7,28 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import {
-  ApiBody,
-  ApiCookieAuth,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBody, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { LogoutDto } from './dto/logout.dto';
-import { RequestLoginCodeDto } from './dto/request-login-code.dto';
-import { VerifyLoginCodeDto } from './dto/verify-login-code.dto';
-import { UsersService } from './users.service';
+import { LogoutDto } from 'src/users/dto/logout.dto';
+import { RequestLoginCodeDto } from 'src/users/dto/request-login-code.dto';
+import { VerifyLoginCodeDto } from 'src/users/dto/verify-login-code.dto';
+import { UsersService } from 'src/users/users.service';
+import type { AuthenticatedRequest } from 'src/restaurants/middleware/session-auth.middleware';
 
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @ApiOperation({ summary: 'Request one-time login code' })
-  @ApiBody({
-    type: RequestLoginCodeDto,
-    schema: {
-      example: {
-        email: 'user@example.com',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Login code sent to email',
-    schema: {
-      example: {
-        message: 'Code sent to email',
-      },
-    },
-  })
+  @ApiOperation({ summary: 'auth.request_code_summary' })
+  @ApiBody({ type: RequestLoginCodeDto })
   @Post()
   requestLoginCode(@Body() requestLoginCodeDto: RequestLoginCodeDto) {
     return this.usersService.requestLoginCode(requestLoginCodeDto.email);
   }
 
-  @ApiOperation({ summary: 'Verify one-time login code' })
-  @ApiBody({
-    type: VerifyLoginCodeDto,
-    schema: {
-      example: {
-        email: 'user@example.com',
-        code: '123456',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Code verified successfully',
-    schema: {
-      example: {
-        message: 'Login for user@example.com successful',
-        session: {
-          token: '8c3e1b06-4690-4a0b-9f4a-5c0d6a321f80',
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Invalid or expired login code',
-  })
+  @ApiOperation({ summary: 'auth.verify_code_summary' })
+  @ApiBody({ type: VerifyLoginCodeDto })
   @Post('verify-login-code')
   async verifyLoginCode(
     @Body() verifyLoginCodeDto: VerifyLoginCodeDto,
@@ -95,8 +49,7 @@ export class UsersController {
       },
     );
 
-    // Додана логіка встановлення куки
-    if (result && result.session && result.session.token) {
+    if (result?.session?.token) {
       response.cookie('gustio_session', result.session.token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -109,71 +62,21 @@ export class UsersController {
     return result;
   }
 
-  @ApiOperation({ summary: 'Logout' })
-  @ApiBody({
-    type: LogoutDto,
-    schema: {
-      example: {
-        token: '8c3e1b06-4690-4a0b-9f4a-5c0d6a321f80',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Logout successful',
-    schema: {
-      example: {
-        message: 'Logout successful',
-      },
-    },
-  })
+  @ApiOperation({ summary: 'auth.logout_summary' })
+  @ApiBody({ type: LogoutDto })
   @HttpCode(200)
   @Post('logout')
   logout(@Body() logoutDto: LogoutDto) {
     return this.usersService.logout(logoutDto.token);
   }
 
-  @ApiOperation({ summary: 'Get current user info' })
+  @ApiOperation({ summary: 'auth.get_me_summary' })
   @ApiCookieAuth('gustio_session')
-  @ApiResponse({
-    status: 200,
-    description: 'Current user fetched successfully',
-    schema: {
-      example: {
-        user: {
-          id: 1,
-          email: 'user@example.com',
-          firstName: 'John',
-          lastName: 'Doe',
-          photo: 'https://example.com/photo.jpg',
-          role: 'OWNER',
-          restaurants: [
-            {
-              id: 1,
-              name: 'Pizza House',
-            },
-          ],
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Session token is required',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Invalid or expired session token',
-  })
   @Get('me')
-  me(@Req() request: Request) {
+  me(@Req() request: AuthenticatedRequest) {
     const token = (request.cookies as Record<string, string> | undefined)
       ?.gustio_session;
 
-    if (!token) {
-      throw new BadRequestException('Session token is required');
-    }
-
-    return this.usersService.getMe(token);
+    return this.usersService.getMe(token!);
   }
 }

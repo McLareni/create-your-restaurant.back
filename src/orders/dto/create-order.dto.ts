@@ -17,7 +17,7 @@ export class CreateOrderItemModifierDto {
     example: '8eebf4f4-40aa-4dd0-b7d4-1a58ec4a9e89',
     description: 'Modifier option ID',
   })
-  @IsUUID()
+  @IsUUID(4, { message: 'errors.validation_uuid' })
   modifierOptionId!: string;
 
   @ApiPropertyOptional({
@@ -27,8 +27,8 @@ export class CreateOrderItemModifierDto {
     description: 'Quantity of the selected modifier option',
   })
   @IsOptional()
-  @IsInt()
-  @Min(1)
+  @IsInt({ message: 'errors.validation_int' })
+  @Min(1, { message: 'errors.validation_min_1' })
   quantity?: number;
 }
 
@@ -37,12 +37,12 @@ export class CreateOrderItemDto {
     example: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
     description: 'Dish ID',
   })
-  @IsUUID()
+  @IsUUID(4, { message: 'errors.validation_uuid' })
   dishId!: string;
 
   @ApiProperty({ example: 2, minimum: 1 })
-  @IsInt()
-  @Min(1)
+  @IsInt({ message: 'errors.validation_int' })
+  @Min(1, { message: 'errors.validation_min_1' })
   quantity!: number;
 
   @ApiPropertyOptional({
@@ -50,8 +50,8 @@ export class CreateOrderItemDto {
     description: 'Selected modifier options for this dish',
   })
   @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
+  @IsArray({ message: 'errors.validation_array' })
+  @ValidateNested({ each: true, message: 'errors.validation_nested' })
   @Type(() => CreateOrderItemModifierDto)
   modifiers?: CreateOrderItemModifierDto[];
 }
@@ -63,7 +63,7 @@ export class CreateOrderDto {
     default: OrderType.DINE_IN,
   })
   @IsOptional()
-  @IsEnum(OrderType)
+  @IsEnum(OrderType, { message: 'errors.validation_enum' })
   type?: OrderType;
 
   @ApiPropertyOptional({
@@ -71,13 +71,13 @@ export class CreateOrderDto {
     description: 'Dining table ID. Required for DINE_IN orders.',
   })
   @IsOptional()
-  @IsUUID()
+  @IsUUID(4, { message: 'errors.validation_uuid' })
   tableId?: string;
 
   @ApiProperty({ type: [CreateOrderItemDto] })
-  @IsArray()
-  @ArrayMinSize(1)
-  @ValidateNested({ each: true })
+  @IsArray({ message: 'errors.validation_array' })
+  @ArrayMinSize(1, { message: 'errors.validation_array_min_1' })
+  @ValidateNested({ each: true, message: 'errors.validation_nested' })
   @Type(() => CreateOrderItemDto)
   items!: CreateOrderItemDto[];
 }

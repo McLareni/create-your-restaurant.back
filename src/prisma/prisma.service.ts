@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 
@@ -11,7 +16,7 @@ export class PrismaService
     const databaseUrl = process.env.DATABASE_URL;
 
     if (!databaseUrl) {
-      throw new Error('DATABASE_URL is not set');
+      throw new InternalServerErrorException('errors.database_url_not_set');
     }
 
     if (databaseUrl.startsWith('prisma+postgres://')) {
@@ -31,8 +36,8 @@ export class PrismaService
       return;
     }
 
-    throw new Error(
-      'Unsupported DATABASE_URL scheme. Use prisma+postgres://, postgres://, or postgresql://',
+    throw new InternalServerErrorException(
+      'errors.unsupported_database_url_scheme',
     );
   }
 

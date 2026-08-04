@@ -45,6 +45,7 @@ model Restaurant {
   id                  Int                  @id @default(autoincrement())
   title               String
   slug                String               @unique
+  sortOrder           Int                  @default(0)
   type                EnumTypeRestaurant
   currency            EnumCurrency
   phoneNumber         String?
@@ -209,6 +210,7 @@ model StaffRole {
   id           String     @id @default(uuid())
   restaurantId Int
   name         String
+  permissions  String[]   @default([])
   createdAt    DateTime   @default(now())
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 

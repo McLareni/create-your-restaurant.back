@@ -5,13 +5,14 @@ import { IsEnum, IsOptional, IsUUID } from 'class-validator';
 export class UpdateOrderDto {
   @ApiPropertyOptional({ enum: OrderStatus, example: OrderStatus.IN_PROGRESS })
   @IsOptional()
-  @IsEnum(OrderStatus)
+  @IsEnum(OrderStatus, { message: 'errors.validation_enum' })
   status?: OrderStatus;
+
   @ApiPropertyOptional({
     example: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
     description: 'Dining table ID',
   })
   @IsOptional()
-  @IsUUID()
+  @IsUUID(4, { message: 'errors.validation_uuid' })
   tableId?: string;
 }

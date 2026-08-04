@@ -7,39 +7,60 @@ import { compare, hash } from 'bcrypt';
 import { randomInt, randomUUID } from 'node:crypto';
 import { Resend } from 'resend';
 import { EnumRole } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { I18nService, I18nContext } from 'nestjs-i18n';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { getEmailVerificationTemplate } from 'src/users/templates/email-verification.template';
 
-type SessionMetadata = {
+export type SessionMetadata = {
   userAgent?: string;
   ipAddress?: string;
 };
 
+const AUTH_CONFIG = {
+  OTP_LIFE_TIME_MS: 120000,
+  SESSION_LIFE_TIME_MS: 2592000000,
+  BRUTEFORCE: {
+    MAX_ATTEMPTS: 5,
+    LOCK_DURATION_MS: 300000,
+  },
+};
+
 @Injectable()
 export class UsersService {
-  constructor(private readonly prismaService: PrismaService) {}
-
-  private getResendClient() {
-    const apiKey = process.env.RESEND_API_KEY;
-
-    if (!apiKey) {
-      throw new BadRequestException('Email service is not configured');
+  private readonly loginAttempts = new Map<
+    string,
+    {
+      count: number;
+      lockUntil: number;
     }
+  >();
 
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly i18n: I18nService,
+  ) {}
+
+  private getResendClient(): Resend {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      throw new BadRequestException('errors.email_not_configured');
+    }
     return new Resend(apiKey);
   }
 
   async requestLoginCode(email: string) {
     const resend = this.getResendClient();
+    this.loginAttempts.delete(email);
 
     const loginCode = String(randomInt(0, 1000000)).padStart(6, '0');
-    const loginCodeHash = await hash(loginCode, 10);
-    const loginCodeExpiresAt = new Date(Date.now() + 2 * 60 * 1000);
+    const loginCodeHash = await hash(loginCode, 12);
+    const loginCodeExpiresAt = new Date(
+      Date.now() + AUTH_CONFIG.OTP_LIFE_TIME_MS,
+    );
 
     const existingUser = await this.prismaService.user.findFirst({
-      where: {
-        email,
-        role: EnumRole.OWNER,
-      },
+      where: { email },
+      orderBy: { role: 'asc' },
     });
 
     if (existingUser) {
@@ -62,15 +83,34 @@ export class UsersService {
       });
     }
 
-    await resend.emails.send({
-      from: 'Create Your Restaurant <onboarding@resend.dev>',
-      to: [email],
-      subject: 'Your login code',
-      html: `<p>Your login code is <strong>${loginCode}</strong>. It expires in 2 minutes.</p>`,
-    });
+    const lang = I18nContext.current()?.lang ?? 'uk';
+    const subject = String(
+      this.i18n.t('auth.email_verification_subject', { lang }),
+    );
+    const title = String(
+      this.i18n.t('auth.email_verification_title', { lang }),
+    );
+
+    const emailHtml = getEmailVerificationTemplate(title, loginCode);
+
+    try {
+      const fromAddress =
+        process.env.EMAIL_FROM_ADDRESS ?? 'onboarding@resend.dev';
+      await resend.emails.send({
+        from: `Create Your Restaurant <${fromAddress}>`,
+        to: [email],
+        subject,
+        html: emailHtml,
+        tags: [{ name: 'category', value: 'auth' }],
+      });
+    } catch {
+      return {
+        message: 'errors.email_simulation_active',
+      };
+    }
 
     return {
-      message: 'Code sent to email',
+      message: 'auth.code_sent',
     };
   }
 
@@ -79,28 +119,45 @@ export class UsersService {
     code: string,
     sessionMetadata: SessionMetadata = {},
   ) {
+    const clientAttempts = this.loginAttempts.get(email);
+
+    if (clientAttempts && clientAttempts.lockUntil > Date.now()) {
+      throw new UnauthorizedException('errors.too_many_attempts');
+    }
+
     const user = await this.prismaService.user.findFirst({
-      where: {
-        email,
-        role: EnumRole.OWNER,
-      },
+      where: { email },
+      orderBy: { role: 'asc' },
     });
 
     if (!user?.loginCodeHash || !user.loginCodeExpiresAt) {
-      throw new UnauthorizedException('Invalid code');
+      throw new UnauthorizedException('errors.invalid_code');
     }
 
     if (user.loginCodeExpiresAt < new Date()) {
-      throw new UnauthorizedException('Code expired');
+      throw new UnauthorizedException('errors.code_expired');
     }
 
     const isCodeValid = await compare(code, user.loginCodeHash);
 
     if (!isCodeValid) {
-      throw new UnauthorizedException('Invalid code');
+      const currentCount = clientAttempts ? clientAttempts.count + 1 : 1;
+      if (currentCount >= AUTH_CONFIG.BRUTEFORCE.MAX_ATTEMPTS) {
+        this.loginAttempts.set(email, {
+          count: currentCount,
+          lockUntil: Date.now() + AUTH_CONFIG.BRUTEFORCE.LOCK_DURATION_MS,
+        });
+        throw new UnauthorizedException('errors.account_locked');
+      }
+      this.loginAttempts.set(email, { count: currentCount, lockUntil: 0 });
+      throw new UnauthorizedException('errors.invalid_code');
     }
 
-    const sessionExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    this.loginAttempts.delete(email);
+
+    const sessionExpiresAt = new Date(
+      Date.now() + AUTH_CONFIG.SESSION_LIFE_TIME_MS,
+    );
     const sessionToken = randomUUID();
 
     await this.prismaService.user.update({
@@ -120,7 +177,7 @@ export class UsersService {
     });
 
     return {
-      message: `Login for ${email} successful`,
+      message: 'auth.login_success',
       session: {
         token: sessionToken,
         expiresAt: sessionExpiresAt,
@@ -130,7 +187,7 @@ export class UsersService {
 
   async logout(sessionToken: string) {
     if (!sessionToken) {
-      throw new BadRequestException('Session token is required');
+      throw new BadRequestException('errors.token_required');
     }
 
     await this.prismaService.session.deleteMany({
@@ -138,13 +195,13 @@ export class UsersService {
     });
 
     return {
-      message: 'Logout successful',
+      message: 'auth.logout_success',
     };
   }
 
   async validateSessionToken(sessionToken: string) {
     if (!sessionToken) {
-      throw new UnauthorizedException('Session token is required');
+      throw new UnauthorizedException('errors.token_required');
     }
 
     const session = await this.prismaService.session.findUnique({
@@ -153,7 +210,7 @@ export class UsersService {
     });
 
     if (!session || session.expiresAt <= new Date()) {
-      throw new UnauthorizedException('Invalid or expired session token');
+      throw new UnauthorizedException('errors.session_expired');
     }
 
     return session.user;
@@ -162,9 +219,17 @@ export class UsersService {
   async getMe(sessionToken: string) {
     const user = await this.validateSessionToken(sessionToken);
 
-    const restaurants = await this.prismaService.restaurant.findMany({
-      where: { ownerId: user.id },
-    });
+    const restaurants =
+      user.role === EnumRole.OWNER
+        ? await this.prismaService.restaurant.findMany({
+            where: { ownerId: user.id },
+            orderBy: { id: 'asc' },
+          })
+        : user.restaurantId
+          ? await this.prismaService.restaurant.findMany({
+              where: { id: user.restaurantId },
+            })
+          : [];
 
     return {
       user: {

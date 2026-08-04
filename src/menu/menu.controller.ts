@@ -1,18 +1,9 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseIntPipe,
-  Post,
-  Req,
-} from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { CreateMenuDto } from './dto/create-menu.dto';
-import { MenuService } from './menu.service';
+import { MenuService } from 'src/menu/menu.service';
 
 @ApiTags('Menu')
-@Controller('menu')
+@Controller('restaurants/:restaurantId/menu')
 export class MenuController {
   constructor(private readonly menuService: MenuService) {}
 
@@ -21,13 +12,8 @@ export class MenuController {
     return this.menuService.getMenuBySlug(slug);
   }
 
-  @Get(':restaurantId')
+  @Get()
   getMenu(@Param('restaurantId', ParseIntPipe) restaurantId: number) {
     return this.menuService.getMenu(restaurantId);
-  }
-
-  @Post()
-  create(@Body() createMenuDto: CreateMenuDto, @Req() request: any) {
-    return this.menuService.create(createMenuDto, request.user.id);
   }
 }

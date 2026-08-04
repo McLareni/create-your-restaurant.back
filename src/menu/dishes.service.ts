@@ -3,12 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CloudinaryService } from '../cloudinary/cloudinary.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { CreateDishDto } from './dto/create-dish.dto';
-import { UpdateDishDto } from './dto/update-dish.dto';
-import { ReorderDishesDto } from './dto/reorder-dishes.dto';
-import { BadgeType, Prisma } from '@prisma/client';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { CloudinaryCleanupService } from 'src/cloudinary/cloudinary-cleanup.service';
+import { BadgeType } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
+import type { CreateDishDto } from 'src/menu/dto/create-dish.dto';
+import type { UpdateDishDto } from 'src/menu/dto/update-dish.dto';
+import type { ReorderDishesDto } from 'src/menu/dto/reorder-dishes.dto';
 
 type UploadedDishImage = {
   buffer: Buffer;
@@ -22,107 +24,26 @@ export class DishesService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly cloudinaryService: CloudinaryService,
+    private readonly cloudinaryCleanupService: CloudinaryCleanupService,
   ) {}
 
-  private async attachDishImage(
-    tx: Prisma.TransactionClient,
-    dishId: string,
-    file: UploadedDishImage,
-  ) {
-    if (!file.mimetype.startsWith('image/')) {
-      throw new BadRequestException('Only image files are allowed');
-    }
-
-    const uploaded = await this.cloudinaryService.uploadImage(
-      file.buffer,
-      'dishes',
-    );
-
-    await tx.image.create({
-      data: {
-        url: uploaded.secure_url,
-        imageDishes: {
-          create: {
-            dishId,
-          },
-        },
-      },
-    });
-  }
-
-  async getTagsLookup() {
-    const defaultTags = [
-      'Веган',
-      'Гостро',
-      'Без лактози',
-      'Біо',
-      'Фітнес',
-      'Шеф-рецепт',
-    ];
-    const lookups = await this.prismaService.dishTagLookup.findMany({
-      select: { name: true },
-    });
-    const usedTags = lookups.map((item) => item.name);
-    return Array.from(new Set([...defaultTags, ...usedTags]));
-  }
-
-  async getAllergensLookup() {
-    const defaultAllergens = [
-      'Глютен',
-      'Лактоза',
-      'Горіхи',
-      'Морепродукти',
-      'Арахіс',
-      'Яйця',
-    ];
-    const lookups = await this.prismaService.dishAllergenLookup.findMany({
-      select: { name: true },
-    });
-    const usedAllergens = lookups.map((item) => item.name);
-    return Array.from(new Set([...defaultAllergens, ...usedAllergens]));
-  }
-
-  async deleteTagLookup(tagName: string, userId: number) {
-    await this.prismaService.dishTagLookup.deleteMany({
-      where: {
-        name: tagName,
-        restaurant: { ownerId: userId },
-      },
-    });
-    return { message: 'Tag removed from all dishes successfully' };
-  }
-
-  async deleteAllergenLookup(allergenName: string, userId: number) {
-    await this.prismaService.dishAllergenLookup.deleteMany({
-      where: {
-        name: allergenName,
-        restaurant: { ownerId: userId },
-      },
-    });
-    return { message: 'Allergen removed from all dishes successfully' };
-  }
-
   async createDish(
+    restaurantId: number,
     categoryId: string,
     createDishDto: CreateDishDto,
-    userId: number,
-    file?: UploadedDishImage,
   ) {
     const category = await this.prismaService.category.findFirst({
-      where: { id: categoryId, restaurant: { ownerId: userId } },
-      select: { id: true, restaurantId: true },
+      where: { id: categoryId, restaurantId },
     });
 
-    if (!category) {
-      throw new NotFoundException('Category not found');
-    }
+    if (!category) throw new NotFoundException('errors.category_not_found');
 
     const { ingredients, modifierIds, ...dishData } = createDishDto;
     const dishCount = await this.prismaService.dish.count({
       where: { categoryId },
     });
 
-    return this.prismaService.$transaction(async (tx) => {
+    const result = await this.prismaService.$transaction(async (tx) => {
       const dish = await tx.dish.create({
         data: {
           categoryId,
@@ -141,32 +62,16 @@ export class DishesService {
           allergens: dishData.allergens?.length
             ? {
                 connectOrCreate: dishData.allergens.map((name) => ({
-                  where: {
-                    restaurantId_name: {
-                      restaurantId: category.restaurantId,
-                      name,
-                    },
-                  },
-                  create: {
-                    restaurantId: category.restaurantId,
-                    name,
-                  },
+                  where: { restaurantId_name: { restaurantId, name } },
+                  create: { restaurantId, name },
                 })),
               }
             : undefined,
           tags: dishData.tags?.length
             ? {
                 connectOrCreate: dishData.tags.map((name) => ({
-                  where: {
-                    restaurantId_name: {
-                      restaurantId: category.restaurantId,
-                      name,
-                    },
-                  },
-                  create: {
-                    restaurantId: category.restaurantId,
-                    name,
-                  },
+                  where: { restaurantId_name: { restaurantId, name } },
+                  create: { restaurantId, name },
                 })),
               }
             : undefined,
@@ -180,7 +85,7 @@ export class DishesService {
             name: i.name,
             quantity: i.quantity,
             unit: i.unit,
-            inventoryItemId: i.inventoryItemId || null, // <--- ЗАПИСУЄМО ЗВ'ЯЗОК З СКЛАДОМ
+            inventoryItemId: i.inventoryItemId || null,
           })),
         });
       }
@@ -194,45 +99,30 @@ export class DishesService {
         });
       }
 
-      if (file) {
-        await this.attachDishImage(tx, dish.id, file);
-      }
-
       return tx.dish.findUnique({
         where: { id: dish.id },
         include: {
           ingredients: true,
           allergens: true,
           tags: true,
-          images: {
-            include: {
-              image: {
-                select: {
-                  id: true,
-                  url: true,
-                },
-              },
-            },
-          },
+          images: { include: { image: true } },
         },
       });
     });
+
+    return result;
   }
 
   async updateDish(
+    restaurantId: number,
     dishId: string,
     updateDishDto: UpdateDishDto,
-    userId: number,
-    file?: UploadedDishImage,
   ) {
     const dish = await this.prismaService.dish.findFirst({
-      where: { id: dishId, category: { restaurant: { ownerId: userId } } },
-      select: { id: true },
+      where: { id: dishId, category: { restaurantId } },
     });
 
-    if (!dish) {
-      throw new NotFoundException('Dish not found');
-    }
+    if (!dish) throw new NotFoundException('errors.dish_not_found');
 
     const { ingredients, modifierIds, categoryId, sortOrder, ...dishData } =
       updateDishDto;
@@ -267,36 +157,41 @@ export class DishesService {
       }),
       ...(categoryId !== undefined && { categoryId }),
       ...(sortOrder !== undefined && { sortOrder }),
-      ...(ingredients !== undefined && {
-        ingredients: { create: ingredients },
-      }),
     };
 
-    return this.prismaService.$transaction(async (tx) => {
-      const existingDish = await tx.dish.findUnique({
-        where: { id: dishId },
-        select: { category: { select: { restaurantId: true } } },
-      });
-      const restaurantId = existingDish?.category.restaurantId;
-      if (!restaurantId) {
-        throw new NotFoundException('Dish not found');
-      }
-
+    const result = await this.prismaService.$transaction(async (tx) => {
       if (ingredients) {
         await tx.dishIngredient.deleteMany({ where: { dishId } });
+        if (ingredients.length > 0) {
+          await tx.dishIngredient.createMany({
+            data: ingredients.map((i) => ({
+              dishId,
+              name: i.name,
+              quantity: i.quantity,
+              unit: i.unit,
+              inventoryItemId: i.inventoryItemId || null,
+            })),
+          });
+        }
       }
 
       if (modifierIds !== undefined) {
         await tx.dishModifier.deleteMany({ where: { dishId } });
+        if (modifierIds.length > 0) {
+          await tx.dishModifier.createMany({
+            data: modifierIds.map((modId) => ({
+              dishId,
+              modifierGroupId: modId,
+            })),
+          });
+        }
       }
 
       if (dishData.allergens !== undefined) {
         dishUpdateData.allergens = {
           set: [],
           connectOrCreate: dishData.allergens.map((name) => ({
-            where: {
-              restaurantId_name: { restaurantId, name },
-            },
+            where: { restaurantId_name: { restaurantId, name } },
             create: { restaurantId, name },
           })),
         };
@@ -306,50 +201,107 @@ export class DishesService {
         dishUpdateData.tags = {
           set: [],
           connectOrCreate: dishData.tags.map((name) => ({
-            where: {
-              restaurantId_name: { restaurantId, name },
-            },
+            where: { restaurantId_name: { restaurantId, name } },
             create: { restaurantId, name },
           })),
         };
       }
 
-      const updatedDish = await tx.dish.update({
+      return await tx.dish.update({
         where: { id: dishId },
         data: dishUpdateData,
         include: { ingredients: true, allergens: true, tags: true },
       });
+    });
 
-      if (modifierIds && modifierIds.length > 0) {
-        await tx.dishModifier.createMany({
-          data: modifierIds.map((modId) => ({
-            dishId,
-            modifierGroupId: modId,
-          })),
+    return result;
+  }
+
+  async updateDishPhotos(
+    restaurantId: number,
+    dishId: string,
+    layout: { type: string; url?: string }[],
+    files?: UploadedDishImage[],
+  ) {
+    const dish = await this.prismaService.dish.findFirst({
+      where: { id: dishId, category: { restaurantId } },
+    });
+    if (!dish) throw new NotFoundException('errors.dish_not_found');
+
+    const uploadedImages: { url: string; publicId: string }[] = [];
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const uploaded = await this.cloudinaryService.uploadImage(
+          file.buffer,
+          'dishes',
+        );
+        this.cloudinaryCleanupService.scheduleDeletion(uploaded.public_id);
+        uploadedImages.push({
+          url: uploaded.secure_url,
+          publicId: uploaded.public_id,
+        });
+      }
+    }
+
+    const finalUrls: string[] = [];
+    let newFileIndex = 0;
+    for (const item of layout) {
+      if (item.type === 'existing' && item.url) {
+        finalUrls.push(item.url);
+      } else if (item.type === 'new' && newFileIndex < uploadedImages.length) {
+        finalUrls.push(uploadedImages[newFileIndex++].url);
+      }
+    }
+
+    await this.prismaService.$transaction(async (tx) => {
+      const oldImageDishes = await tx.imageDish.findMany({
+        where: { dishId },
+        include: { image: true },
+      });
+
+      const urlsToKeep = new Set(finalUrls);
+      const imagesToDelete = oldImageDishes.filter(
+        (oid) => !urlsToKeep.has(oid.image.url),
+      );
+
+      await tx.imageDish.deleteMany({ where: { dishId } });
+
+      if (imagesToDelete.length > 0) {
+        await tx.image.deleteMany({
+          where: { id: { in: imagesToDelete.map((i) => i.imageId) } },
         });
       }
 
-      if (file) {
-        await this.attachDishImage(tx, dishId, file);
+      for (const url of finalUrls) {
+        let image = await tx.image.findFirst({ where: { url } });
+        if (!image) {
+          image = await tx.image.create({ data: { url } });
+        }
+        await tx.imageDish.create({
+          data: { dishId, imageId: image.id },
+        });
       }
-
-      return updatedDish;
     });
+
+    uploadedImages.forEach((img) => {
+      this.cloudinaryCleanupService.cancelDeletion(img.publicId);
+    });
+
+    return { message: 'success.photos_updated' };
   }
 
-  async reorderDishes(reorderDishesDto: ReorderDishesDto, userId: number) {
+  async reorderDishes(
+    restaurantId: number,
+    reorderDishesDto: ReorderDishesDto,
+  ) {
     const dishIds = reorderDishesDto.items.map((i) => i.id);
 
-    const dishes = await this.prismaService.dish.findMany({
-      where: {
-        id: { in: dishIds },
-        category: { restaurant: { ownerId: userId } },
-      },
-      select: { id: true },
+    const validCount = await this.prismaService.dish.count({
+      where: { id: { in: dishIds }, category: { restaurantId } },
     });
 
-    if (dishes.length !== dishIds.length) {
-      throw new NotFoundException('Some dishes not found or access denied');
+    if (validCount !== dishIds.length) {
+      throw new BadRequestException('errors.invalid_dishes_payload');
     }
 
     await this.prismaService.$transaction(
@@ -361,19 +313,18 @@ export class DishesService {
       ),
     );
 
-    return { message: 'Dishes reordered successfully' };
+    return { message: 'success.dishes_reordered' };
   }
 
-  async deleteDish(dishId: string, userId: number) {
+  async deleteDish(restaurantId: number, dishId: string) {
     const dish = await this.prismaService.dish.findFirst({
-      where: { id: dishId, category: { restaurant: { ownerId: userId } } },
-      select: { id: true },
+      where: { id: dishId, category: { restaurantId } },
     });
 
-    if (!dish) throw new NotFoundException('Dish not found');
+    if (!dish) throw new NotFoundException('errors.dish_not_found');
 
     await this.prismaService.dish.delete({ where: { id: dishId } });
 
-    return { message: 'Dish deleted successfully' };
+    return { message: 'success.dish_deleted' };
   }
 }

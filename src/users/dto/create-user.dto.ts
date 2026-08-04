@@ -2,21 +2,21 @@ import { IsEmail, IsEnum, IsOptional, IsString } from 'class-validator';
 import { EnumRole } from '@prisma/client';
 
 export class CreateUserDto {
-  @IsEmail()
+  @IsEmail({}, { message: 'errors.validation_email' })
   email!: string;
 
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
   firstName?: string;
 
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
   lastName?: string;
 
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
   photo?: string;
 
-  @IsEnum(EnumRole)
+  @IsEnum(EnumRole, { message: 'errors.validation_enum' })
   role!: EnumRole;
 }

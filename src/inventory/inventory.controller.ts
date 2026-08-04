@@ -4,65 +4,63 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
-  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { InventoryService } from './inventory.service';
+import { InventoryService } from 'src/inventory/inventory.service';
 import {
   CreateInventoryItemDto,
   UpdateInventoryItemDto,
-} from './dto/inventory.dto';
-import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
+} from 'src/inventory/dto/inventory.dto';
+import { PermissionsGuard } from 'src/guards/permissions.guard';
+import { RequirePermission } from 'src/guards/permission.decorator';
+import { ActiveRestaurantId } from 'src/common/decorators/active-restaurant-id.decorator';
+import { PERMISSIONS } from 'src/common/constants/permissions.constants';
 
 @ApiTags('Inventory')
-@Controller('restaurants/:restaurantId/inventory')
+@Controller('inventory')
+@UseGuards(PermissionsGuard)
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
   @ApiOperation({ summary: 'Get all inventory items' })
   @ApiCookieAuth('gustio_session')
+  @RequirePermission(PERMISSIONS.INVENTORY_READ)
   @Get()
-  getAll(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.inventoryService.getAll(restaurantId, request.user.id);
+  getAll(@ActiveRestaurantId() restaurantId: number) {
+    return this.inventoryService.getAll(restaurantId);
   }
 
   @ApiOperation({ summary: 'Add item to inventory' })
   @ApiCookieAuth('gustio_session')
+  @RequirePermission(PERMISSIONS.INVENTORY_MANAGE)
   @Post()
   create(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @ActiveRestaurantId() restaurantId: number,
     @Body() dto: CreateInventoryItemDto,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.inventoryService.create(restaurantId, dto, request.user.id);
+    return this.inventoryService.create(restaurantId, dto);
   }
 
   @ApiOperation({ summary: 'Update inventory stock or details' })
   @ApiCookieAuth('gustio_session')
+  @RequirePermission(PERMISSIONS.INVENTORY_MANAGE)
   @Patch(':id')
   update(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @ActiveRestaurantId() restaurantId: number,
     @Param('id') id: string,
     @Body() dto: UpdateInventoryItemDto,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.inventoryService.update(restaurantId, id, dto, request.user.id);
+    return this.inventoryService.update(restaurantId, id, dto);
   }
 
   @ApiOperation({ summary: 'Delete inventory item' })
   @ApiCookieAuth('gustio_session')
+  @RequirePermission(PERMISSIONS.INVENTORY_MANAGE)
   @Delete(':id')
-  delete(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Param('id') id: string,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.inventoryService.delete(restaurantId, id, request.user.id);
+  delete(@ActiveRestaurantId() restaurantId: number, @Param('id') id: string) {
+    return this.inventoryService.delete(restaurantId, id);
   }
 }

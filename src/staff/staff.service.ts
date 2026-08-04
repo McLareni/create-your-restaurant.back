@@ -5,18 +5,16 @@ import {
 } from '@nestjs/common';
 import { hash } from 'bcrypt';
 import { EnumRole } from '@prisma/client';
-import { CloudinaryService } from '../cloudinary/cloudinary.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { CreateStaffDto } from './dto/create-staff.dto';
-import { UpdateStaffDto } from './dto/update-staff.dto';
-import { CreateStaffRoleDto } from './dto/create-staff-role.dto';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { PrismaService } from 'src/prisma/prisma.service';
+import type { CreateStaffDto } from 'src/staff/dto/create-staff.dto';
+import type { UpdateStaffDto } from 'src/staff/dto/update-staff.dto';
+import type { CreateStaffRoleDto } from 'src/staff/dto/create-staff-role.dto';
+import { DataMappingUtil } from 'src/common/utils/mapping.util';
+import type { UploadedStaffImage } from 'src/cloudinary/cloudinary.service';
+import { PERMISSION_REGISTRY } from 'src/common/constants/permissions.constants';
 
-type UploadedStaffImage = {
-  buffer: Buffer;
-  mimetype: string;
-  originalname: string;
-  size: number;
-};
+const CORE_MODULES = ['orders'];
 
 @Injectable()
 export class StaffService {
@@ -25,59 +23,24 @@ export class StaffService {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
-  private mapToUiStaff(user: any) {
-    return {
-      id: String(user.id),
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      phone: user.phone,
-      role: user.customRole || user.role,
-      isActive: user.isActive,
-      photo: user.photo,
-      pinCode: user.pinCode,
-    };
-  }
-
   async getAvailablePermissions(restaurantId: number, userId: number) {
     const restaurant = await this.prismaService.restaurant.findFirst({
-      where: { id: restaurantId, ownerId: userId },
+      where: {
+        id: restaurantId,
+        OR: [{ ownerId: userId }, { staff: { some: { id: userId } } }],
+      },
       select: { activeModules: true },
     });
+
     if (!restaurant) {
-      throw new NotFoundException('Restaurant not found');
+      throw new NotFoundException('errors.restaurant_not_found');
     }
 
-    const allPermissions = [
-      {
-        id: 'analytics',
-        label: 'Перегляд аналітики та звітів',
-        module: 'analytics',
-      },
-      {
-        id: 'menu',
-        label: 'Управління цифровим меню й цінами',
-        module: 'menu-engine',
-      },
-      {
-        id: 'tables',
-        label: 'Керування QR-кодами закладу',
-        module: 'qr-tables',
-      },
-      {
-        id: 'orders',
-        label: 'Скасування та модифікація чеків',
-        module: 'staff',
-      },
-      {
-        id: 'staff',
-        label: 'Управління змінами працівників',
-        module: 'staff',
-      },
-    ];
-    return allPermissions
-      .filter((perm) => restaurant.activeModules.includes(perm.module))
-      .map(({ id, label }) => ({ id, label }));
+    const activeSet = new Set([...restaurant.activeModules, ...CORE_MODULES]);
+
+    return PERMISSION_REGISTRY.filter((group) =>
+      activeSet.has(group.moduleKey),
+    );
   }
 
   async createStaffRole(
@@ -90,7 +53,7 @@ export class StaffService {
       select: { id: true },
     });
     if (!restaurant) {
-      throw new NotFoundException('Restaurant not found');
+      throw new NotFoundException('errors.access_denied');
     }
 
     const roleName = createStaffRoleDto.name.trim();
@@ -103,24 +66,51 @@ export class StaffService {
       },
     });
     if (existingRole) {
-      throw new BadRequestException('Role already exists in this restaurant');
+      throw new BadRequestException('errors.role_exists');
     }
 
     return this.prismaService.staffRole.create({
       data: {
         restaurantId,
         name: roleName,
+        permissions: createStaffRoleDto.permissions || [],
       },
+    });
+  }
+
+  async updateStaffRole(
+    restaurantId: number,
+    roleId: string,
+    permissions: string[],
+    userId: number,
+  ) {
+    const role = await this.prismaService.staffRole.findFirst({
+      where: {
+        id: roleId,
+        restaurantId,
+        restaurant: { ownerId: userId },
+      },
+    });
+    if (!role) {
+      throw new NotFoundException('errors.access_denied');
+    }
+
+    return this.prismaService.staffRole.update({
+      where: { id: roleId },
+      data: { permissions },
     });
   }
 
   async getStaffRoles(restaurantId: number, userId: number) {
     const restaurant = await this.prismaService.restaurant.findFirst({
-      where: { id: restaurantId, ownerId: userId },
+      where: {
+        id: restaurantId,
+        OR: [{ ownerId: userId }, { staff: { some: { id: userId } } }],
+      },
       select: { id: true },
     });
     if (!restaurant) {
-      throw new NotFoundException('Restaurant not found');
+      throw new NotFoundException('errors.restaurant_not_found');
     }
 
     return this.prismaService.staffRole.findMany({
@@ -138,7 +128,7 @@ export class StaffService {
       },
     });
     if (!role) {
-      throw new NotFoundException('Role not found');
+      throw new NotFoundException('errors.access_denied');
     }
 
     return this.prismaService.$transaction(async (tx) => {
@@ -157,7 +147,7 @@ export class StaffService {
         where: { id: roleId },
       });
 
-      return { message: 'Role deleted successfully and staff reassigned' };
+      return { message: 'success.role_deleted' };
     });
   }
 
@@ -167,11 +157,14 @@ export class StaffService {
     userId: number,
   ) {
     const restaurant = await this.prismaService.restaurant.findFirst({
-      where: { id: restaurantId, ownerId: userId },
+      where: {
+        id: restaurantId,
+        OR: [{ ownerId: userId }, { staff: { some: { id: userId } } }],
+      },
       select: { id: true },
     });
     if (!restaurant) {
-      throw new NotFoundException('Restaurant not found');
+      throw new NotFoundException('errors.restaurant_not_found');
     }
 
     if (createStaffDto.role !== 'STAFF') {
@@ -179,9 +172,7 @@ export class StaffService {
         where: { restaurantId, name: createStaffDto.role },
       });
       if (!roleExists) {
-        throw new BadRequestException(
-          'The assigned role does not exist in this restaurant',
-        );
+        throw new BadRequestException('errors.role_not_found');
       }
     }
 
@@ -192,14 +183,13 @@ export class StaffService {
       },
     });
     if (existingUser) {
-      throw new BadRequestException(
-        'User with this email already exists in this restaurant',
-      );
+      throw new BadRequestException('errors.email_exists');
     }
 
     const passwordHash = createStaffDto.password
-      ? await hash(createStaffDto.password, 10)
+      ? await hash(createStaffDto.password, 12)
       : null;
+
     const newUser = await this.prismaService.user.create({
       data: {
         restaurantId,
@@ -214,26 +204,31 @@ export class StaffService {
         pinCode: passwordHash,
       },
     });
+
     return {
-      message: 'Staff member created successfully',
-      staff: this.mapToUiStaff(newUser),
+      message: 'success.staff_created',
+      staff: DataMappingUtil.mapToUiStaff(newUser),
     };
   }
 
   async getStaffList(restaurantId: number, userId: number) {
     const restaurant = await this.prismaService.restaurant.findFirst({
-      where: { id: restaurantId, ownerId: userId },
+      where: {
+        id: restaurantId,
+        OR: [{ ownerId: userId }, { staff: { some: { id: userId } } }],
+      },
       select: { id: true },
     });
     if (!restaurant) {
-      throw new NotFoundException('Restaurant not found');
+      throw new NotFoundException('errors.restaurant_not_found');
     }
 
     const users = await this.prismaService.user.findMany({
       where: { restaurantId },
       orderBy: { createdAt: 'asc' },
     });
-    return users.map((user) => this.mapToUiStaff(user));
+
+    return users.map((user) => DataMappingUtil.mapToUiStaff(user));
   }
 
   async updateStaff(
@@ -244,22 +239,25 @@ export class StaffService {
   ) {
     const numericId = Number(staffId);
     if (Number.isNaN(numericId)) {
-      throw new BadRequestException('Invalid staff ID format');
+      throw new BadRequestException('errors.invalid_id');
     }
 
     const staff = await this.prismaService.user.findFirst({
       where: {
         id: numericId,
         restaurantId,
-        staffRestaurant: { is: { ownerId: userId } },
+        staffRestaurant: {
+          OR: [{ ownerId: userId }, { staff: { some: { id: userId } } }],
+        },
       },
     });
     if (!staff) {
-      throw new NotFoundException('Staff member not found');
+      throw new NotFoundException('errors.user_not_found');
     }
 
     const { firstName, lastName, email, phone, role, isActive, password } =
       updateStaffDto;
+
     if (email !== undefined && email !== staff.email) {
       const emailTaken = await this.prismaService.user.findFirst({
         where: {
@@ -268,9 +266,7 @@ export class StaffService {
         },
       });
       if (emailTaken) {
-        throw new BadRequestException(
-          'User with this email already exists in this restaurant',
-        );
+        throw new BadRequestException('errors.email_exists');
       }
     }
 
@@ -279,13 +275,12 @@ export class StaffService {
         where: { restaurantId, name: role },
       });
       if (!roleExists) {
-        throw new BadRequestException(
-          'The assigned role does not exist in this restaurant',
-        );
+        throw new BadRequestException('errors.role_not_found');
       }
     }
 
-    const passwordHash = password ? await hash(password, 10) : undefined;
+    const passwordHash = password ? await hash(password, 12) : undefined;
+
     const updatedUser = await this.prismaService.user.update({
       where: { id: numericId },
       data: {
@@ -299,31 +294,34 @@ export class StaffService {
         ...(passwordHash !== undefined && { pinCode: passwordHash }),
       },
     });
+
     return {
-      message: 'Staff member updated successfully',
-      staff: this.mapToUiStaff(updatedUser),
+      message: 'success.staff_updated',
+      staff: DataMappingUtil.mapToUiStaff(updatedUser),
     };
   }
 
   async deleteStaff(restaurantId: number, staffId: string, userId: number) {
     const numericId = Number(staffId);
     if (Number.isNaN(numericId)) {
-      throw new BadRequestException('Invalid staff ID format');
+      throw new BadRequestException('errors.invalid_id');
     }
 
     const staff = await this.prismaService.user.findFirst({
       where: {
         id: numericId,
         restaurantId,
-        staffRestaurant: { is: { ownerId: userId } },
+        staffRestaurant: {
+          OR: [{ ownerId: userId }, { staff: { some: { id: userId } } }],
+        },
       },
     });
     if (!staff) {
-      throw new NotFoundException('Staff member not found');
+      throw new NotFoundException('errors.user_not_found');
     }
 
     await this.prismaService.user.delete({ where: { id: numericId } });
-    return { message: 'Staff member deleted successfully' };
+    return { message: 'success.staff_deleted' };
   }
 
   async uploadStaffPhoto(
@@ -333,39 +331,43 @@ export class StaffService {
     file?: UploadedStaffImage,
   ) {
     if (!file) {
-      throw new BadRequestException('Photo file is required');
+      throw new BadRequestException('errors.photo_required');
     }
     if (!file.mimetype.startsWith('image/')) {
-      throw new BadRequestException('Only image files are allowed');
+      throw new BadRequestException('errors.invalid_file_type');
     }
 
     const numericId = Number(staffId);
     if (Number.isNaN(numericId)) {
-      throw new BadRequestException('Invalid staff ID format');
+      throw new BadRequestException('errors.invalid_id');
     }
 
     const staff = await this.prismaService.user.findFirst({
       where: {
         id: numericId,
         restaurantId,
-        staffRestaurant: { is: { ownerId: userId } },
+        staffRestaurant: {
+          OR: [{ ownerId: userId }, { staff: { some: { id: userId } } }],
+        },
       },
     });
     if (!staff) {
-      throw new NotFoundException('Staff member not found');
+      throw new NotFoundException('errors.user_not_found');
     }
 
     const uploaded = await this.cloudinaryService.uploadImage(
       file.buffer,
       'staff',
     );
+
     const updatedUser = await this.prismaService.user.update({
       where: { id: numericId },
       data: { photo: uploaded.secure_url },
     });
+
     return {
-      message: 'Staff photo updated successfully',
-      staff: this.mapToUiStaff(updatedUser),
+      message: 'success.photo_uploaded',
+      staff: DataMappingUtil.mapToUiStaff(updatedUser),
     };
   }
 }

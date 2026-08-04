@@ -1,4 +1,3 @@
-// src/tables/dto/create-table.dto.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TableStatus } from '@prisma/client';
 import {
@@ -13,8 +12,8 @@ import {
 
 export class CreateTableDto {
   @ApiProperty({ example: 12, minimum: 1 })
-  @IsInt()
-  @Min(1)
+  @IsInt({ message: 'errors.validation_int' })
+  @Min(1, { message: 'errors.validation_min_1' })
   number!: number;
 
   @ApiPropertyOptional({
@@ -23,20 +22,20 @@ export class CreateTableDto {
     default: TableStatus.ACTIVE,
   })
   @IsOptional()
-  @IsEnum(TableStatus)
+  @IsEnum(TableStatus, { message: 'errors.validation_enum' })
   status?: TableStatus;
 
   @ApiProperty({
     example: 'TERRACE',
     description: 'Table type, e.g. BAR, TERRACE, HALL',
   })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(60)
+  @IsString({ message: 'errors.validation_string' })
+  @IsNotEmpty({ message: 'errors.validation_required' })
+  @MaxLength(60, { message: 'errors.validation_max_length' })
   type!: string;
 
   @ApiPropertyOptional({ example: 'TERRACE' })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
   zone?: string;
 }

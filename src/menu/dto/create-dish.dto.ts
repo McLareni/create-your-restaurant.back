@@ -6,122 +6,95 @@ import {
   IsArray,
   ValidateNested,
   Min,
-  Max,
+  IsUUID,
+  IsNotEmpty,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class DishVariantDto {
-  @IsString()
-  @IsOptional()
-  id?: string;
-
-  @IsString()
+export class IngredientItemDto {
+  @IsString({ message: 'errors.validation_string' })
+  @IsNotEmpty({ message: 'errors.validation_required' })
   name!: string;
 
-  @IsNumber()
-  @Min(0)
-  price!: number;
-
-  @IsString()
+  @IsUUID(4, { message: 'errors.validation_uuid' })
   @IsOptional()
-  sku?: string;
-}
-
-class IngredientItemDto {
-  @IsString()
-  name!: string;
   inventoryItemId?: string;
 
-  @IsNumber()
-  @Min(0)
+  @IsNumber({}, { message: 'errors.validation_number' })
+  @Min(0, { message: 'errors.validation_min_0' })
   quantity!: number;
 
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
+  @IsNotEmpty({ message: 'errors.validation_required' })
   unit!: string;
 }
 
 export class CreateDishDto {
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
+  @IsNotEmpty({ message: 'errors.validation_required' })
   name!: string;
 
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
   @IsOptional()
   description?: string;
 
-  @IsNumber()
-  @Min(0)
+  @IsNumber({}, { message: 'errors.validation_number' })
+  @Min(0, { message: 'errors.validation_min_0' })
   price!: number;
 
-  @IsNumber()
+  @IsNumber({}, { message: 'errors.validation_number' })
   @IsOptional()
-  @Min(0)
-  @Max(100)
-  taxRate?: number;
-
-  @IsNumber()
-  @IsOptional()
-  @Min(0)
+  @Min(0, { message: 'errors.validation_min_0' })
   weight?: number;
 
-  @IsNumber()
+  @IsNumber({}, { message: 'errors.validation_number' })
   @IsOptional()
-  @Min(0)
+  @Min(0, { message: 'errors.validation_min_0' })
   cookingTime?: number;
 
-  @IsNumber()
+  @IsNumber({}, { message: 'errors.validation_number' })
   @IsOptional()
-  @Min(0)
+  @Min(0, { message: 'errors.validation_min_0' })
   calories?: number;
 
-  @IsBoolean()
+  @IsBoolean({ message: 'errors.validation_boolean' })
   @IsOptional()
   isVegan?: boolean;
 
-  @IsBoolean()
+  @IsBoolean({ message: 'errors.validation_boolean' })
   @IsOptional()
   isSpicy?: boolean;
 
-  @IsBoolean()
+  @IsBoolean({ message: 'errors.validation_boolean' })
   @IsOptional()
   isLactoseFree?: boolean;
 
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
   @IsOptional()
   badge?: string;
 
-  @IsArray()
-  @IsString({ each: true })
+  @IsArray({ message: 'errors.validation_array' })
+  @IsString({ each: true, message: 'errors.validation_string' })
   @IsOptional()
   allergens?: string[];
 
-  @IsArray()
-  @IsString({ each: true })
+  @IsArray({ message: 'errors.validation_array' })
+  @IsString({ each: true, message: 'errors.validation_string' })
   @IsOptional()
   tags?: string[];
 
-  @IsArray()
-  @IsString({ each: true })
+  @IsArray({ message: 'errors.validation_array' })
+  @IsString({ each: true, message: 'errors.validation_string' })
   @IsOptional()
   modifierIds?: string[];
 
-  @IsBoolean()
+  @IsBoolean({ message: 'errors.validation_boolean' })
   @IsOptional()
   isAvailable?: boolean;
 
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => DishVariantDto)
-  @IsOptional()
-  variants?: DishVariantDto[];
-
-  @IsArray()
-  @ValidateNested({ each: true })
+  @IsArray({ message: 'errors.validation_array' })
+  @ValidateNested({ each: true, message: 'errors.validation_nested' })
   @Type(() => IngredientItemDto)
   @IsOptional()
   ingredients?: IngredientItemDto[];
-
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  upsellDishIds?: string[];
 }
