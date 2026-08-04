@@ -1,52 +1,49 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseIntPipe,
-  Post,
-  Patch,
-  Req,
-} from '@nestjs/common';
-import { PosService } from './pos.service';
-import { ConnectPosDto, UpdatePosSettingsDto } from './dto/pos.dto';
-import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
+import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import { PosService } from 'src/pos/pos.service';
+import { ConnectPosDto, UpdatePosSettingsDto } from 'src/pos/dto/pos.dto';
+import { PermissionsGuard } from 'src/guards/permissions.guard';
+import { RequirePermission } from 'src/guards/permission.decorator';
+import { ActiveRestaurantId } from 'src/common/decorators/active-restaurant-id.decorator';
+import { PERMISSIONS } from 'src/common/constants/permissions.constants';
 
-@Controller('restaurants/:restaurantId/pos')
+@Controller('pos')
+@UseGuards(PermissionsGuard)
 export class PosController {
   constructor(private readonly posService: PosService) {}
 
   @Get('status')
-  getConnectionStatus(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.posService.getStatus(restaurantId, request.user.id);
+  @RequirePermission(PERMISSIONS.POS_READ)
+  getConnectionStatus(@ActiveRestaurantId() restaurantId: number) {
+    return this.posService.getStatus(restaurantId);
   }
 
   @Post('connect')
+  @RequirePermission(PERMISSIONS.POS_MANAGE)
   connect(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @ActiveRestaurantId() restaurantId: number,
     @Body() dto: ConnectPosDto,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.posService.connect(restaurantId, dto, request.user.id);
+    return this.posService.connect(restaurantId, dto);
   }
 
   @Patch('settings')
+  @RequirePermission(PERMISSIONS.POS_MANAGE)
   updateSettings(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @ActiveRestaurantId() restaurantId: number,
     @Body() dto: UpdatePosSettingsDto,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.posService.updateSettings(restaurantId, dto, request.user.id);
+    return this.posService.updateSettings(restaurantId, dto);
   }
 
   @Post('sync-menu')
-  syncMenu(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.posService.syncMenu(restaurantId, request.user.id);
+  @RequirePermission(PERMISSIONS.POS_MANAGE)
+  syncMenu(@ActiveRestaurantId() restaurantId: number) {
+    return this.posService.syncMenu(restaurantId);
+  }
+
+  @Post('disconnect')
+  @RequirePermission(PERMISSIONS.POS_MANAGE)
+  disconnect(@ActiveRestaurantId() restaurantId: number) {
+    return this.posService.disconnect(restaurantId);
   }
 }

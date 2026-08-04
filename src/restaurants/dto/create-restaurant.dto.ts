@@ -10,78 +10,96 @@ import {
 
 export class CreateRestaurantDto {
   @ApiProperty({ example: 'Pizza House' })
-  @IsString()
-  @MaxLength(120)
+  @IsString({ message: 'errors.validation_string' })
+  @MaxLength(120, { message: 'errors.validation_max_length' })
   title!: string;
 
   @ApiProperty({ example: 'pizza-house' })
-  @IsString()
-  @MaxLength(120)
+  @IsString({ message: 'errors.validation_string' })
+  @MaxLength(120, { message: 'errors.validation_max_length' })
   slug!: string;
 
   @ApiProperty({ enum: EnumTypeRestaurant, example: EnumTypeRestaurant.CAFE })
-  @IsEnum(EnumTypeRestaurant)
+  @IsEnum(EnumTypeRestaurant, { message: 'errors.validation_enum' })
   type!: EnumTypeRestaurant;
 
   @ApiProperty({ enum: EnumCurrency, example: EnumCurrency.USD })
-  @IsEnum(EnumCurrency)
+  @IsEnum(EnumCurrency, { message: 'errors.validation_enum' })
   currency!: EnumCurrency;
 
   @ApiPropertyOptional({ example: '+380991112233' })
   @IsOptional()
-  @IsString()
-  @MaxLength(30)
+  @IsString({ message: 'errors.validation_string' })
+  @MaxLength(30, { message: 'errors.validation_max_length' })
   phoneNumber?: string;
 
   @ApiPropertyOptional({ example: 'Kyiv' })
   @IsOptional()
-  @IsString()
-  @MaxLength(120)
+  @IsString({ message: 'errors.validation_string' })
+  @MaxLength(120, { message: 'errors.validation_max_length' })
   city?: string;
 
-  // НОВІ ПОЛЯ ДЛЯ ВАЛІДАЦІЇ:
+  @ApiPropertyOptional({ example: 'Main St.' })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
+  @MaxLength(120, { message: 'errors.validation_max_length' })
   street?: string;
 
+  @ApiPropertyOptional({ example: '42A' })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
+  @MaxLength(20, { message: 'errors.validation_max_length' })
   building?: string;
 
+  @ApiPropertyOptional({ example: ['mon', 'tue'] })
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
+  @IsArray({ message: 'errors.validation_array' })
+  @IsString({ each: true, message: 'errors.validation_string' })
   workDays?: string[];
 
+  @ApiPropertyOptional({ example: '10:00' })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
+  @MaxLength(5, { message: 'errors.validation_max_length' })
   workHoursStart?: string;
 
+  @ApiPropertyOptional({ example: '22:00' })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
+  @MaxLength(5, { message: 'errors.validation_max_length' })
   workHoursEnd?: string;
 
+  @ApiPropertyOptional({ example: 'instagram_handle' })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
+  @MaxLength(100, { message: 'errors.validation_max_length' })
   instagram?: string;
 
+  @ApiPropertyOptional({ example: 'facebook_page' })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
+  @MaxLength(100, { message: 'errors.validation_max_length' })
   facebook?: string;
 
+  @ApiPropertyOptional({ example: 'telegram_channel' })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
+  @MaxLength(100, { message: 'errors.validation_max_length' })
   telegram?: string;
 
+  @ApiPropertyOptional({ example: 'tiktok_user' })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
+  @MaxLength(100, { message: 'errors.validation_max_length' })
   tiktok?: string;
 
+  @ApiPropertyOptional({ example: 'https://example.com/image.jpg' })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
+  @MaxLength(255, { message: 'errors.validation_max_length' })
   imageUrl?: string;
 
   @ApiProperty({ enum: EnumLanguage, example: EnumLanguage.UA })
-  @IsEnum(EnumLanguage)
+  @IsEnum(EnumLanguage, { message: 'errors.validation_enum' })
   language!: EnumLanguage;
 }

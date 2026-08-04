@@ -1,0 +1,22 @@
+{
+  "inventory_item_deleted": "Інгредієнт видалено зі складу",
+  "category_created": "Категорію успішно створено",
+  "categories_reordered": "Порядок категорій збережено",
+  "category_updated": "Категорію оновлено",
+  "category_deleted": "Категорію видалено",
+  "photos_updated": "Фотографії оновлено",
+  "dishes_reordered": "Порядок страв збережено",
+  "dish_deleted": "Страву видалено",
+  "items_appended": "Товари додано до замовлення",
+  "waiter_called": "Офіціанта викликано до вашого столика",
+  "order_created": "Замовлення успішно створено",
+  "order_updated": "Замовлення оновлено",
+  "order_deleted": "Замовлення видалено",
+  "restaurant_created": "Заклад успішно створено",
+  "restaurant_deleted": "Заклад видалено",
+  "role_deleted": "Роль видалено",
+  "staff_created": "Працівника додано",
+  "staff_updated": "Дані працівника оновлено",
+  "staff_deleted": "Працівника видалено",
+  "photo_uploaded": "Фотографію завантажено"
+}

@@ -4,21 +4,17 @@ import {
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
-import { LiveMonitorModule } from '../live-monitor/live-monitor.module';
-import { PrismaService } from '../prisma/prisma.service';
-import { SessionAuthMiddleware } from '../restaurants/middleware/session-auth.middleware';
-import { UsersModule } from '../users/users.module';
-import { OrdersController } from './orders.controller';
-import { OrdersService } from './orders.service';
+import { LiveMonitorModule } from 'src/live-monitor/live-monitor.module';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { SessionAuthMiddleware } from 'src/restaurants/middleware/session-auth.middleware';
+import { UsersModule } from 'src/users/users.module';
+import { OrdersController } from 'src/orders/orders.controller';
+import { OrdersService } from 'src/orders/orders.service';
 
 @Module({
   imports: [UsersModule, LiveMonitorModule],
   controllers: [OrdersController],
-  providers: [
-    OrdersService,
-    PrismaService,
-    SessionAuthMiddleware,
-  ],
+  providers: [OrdersService, PrismaService, SessionAuthMiddleware],
 })
 export class OrdersModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

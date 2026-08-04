@@ -12,27 +12,40 @@ import {
   ParseIntPipe,
   ParseFilePipe,
   MaxFileSizeValidator,
-  FileTypeValidator,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { CreateStaffDto } from './dto/create-staff.dto';
-import { UpdateStaffDto } from './dto/update-staff.dto';
-import { CreateStaffRoleDto } from './dto/create-staff-role.dto';
-import { StaffService } from './staff.service';
-import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
+import { IsArray, IsString } from 'class-validator';
+import { CreateStaffDto } from 'src/staff/dto/create-staff.dto';
+import { UpdateStaffDto } from 'src/staff/dto/update-staff.dto';
+import { CreateStaffRoleDto } from 'src/staff/dto/create-staff-role.dto';
+import { StaffService } from 'src/staff/staff.service';
+import { PermissionsGuard } from 'src/guards/permissions.guard';
+import { RequirePermission } from 'src/guards/permission.decorator';
+import { FileSignatureValidator } from 'src/common/validators/file-signature.validator';
+import type { AuthenticatedRequest } from 'src/restaurants/middleware/session-auth.middleware';
+import { PERMISSIONS } from 'src/common/constants/permissions.constants';
 
-interface UploadedStaffImage {
+type UploadedStaffImage = {
   buffer: Buffer;
   mimetype: string;
   originalname: string;
   size: number;
+};
+
+export class UpdateStaffRolePermissionsDto {
+  @IsArray({ message: 'errors.validation_array' })
+  @IsString({ each: true, message: 'errors.validation_string' })
+  permissions!: string[];
 }
 
 @Controller('restaurants/:restaurantId')
+@UseGuards(PermissionsGuard)
 export class StaffController {
   constructor(private readonly staffService: StaffService) {}
 
   @Get('staff/permissions')
+  @RequirePermission(PERMISSIONS.STAFF_READ)
   getAvailablePermissions(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Req() req: AuthenticatedRequest,
@@ -41,6 +54,7 @@ export class StaffController {
   }
 
   @Post('staff/roles')
+  @RequirePermission(PERMISSIONS.STAFF_ROLES)
   createRole(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Body() createStaffRoleDto: CreateStaffRoleDto,
@@ -54,6 +68,7 @@ export class StaffController {
   }
 
   @Get('staff/roles')
+  @RequirePermission(PERMISSIONS.STAFF_READ)
   getRoles(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Req() req: AuthenticatedRequest,
@@ -61,7 +76,24 @@ export class StaffController {
     return this.staffService.getStaffRoles(restaurantId, req.user.id);
   }
 
+  @Patch('staff/roles/:roleId')
+  @RequirePermission(PERMISSIONS.STAFF_ROLES)
+  updateRole(
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @Param('roleId') roleId: string,
+    @Body() body: UpdateStaffRolePermissionsDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.staffService.updateStaffRole(
+      restaurantId,
+      roleId,
+      body.permissions,
+      req.user.id,
+    );
+  }
+
   @Delete('staff/roles/:roleId')
+  @RequirePermission(PERMISSIONS.STAFF_ROLES)
   deleteRole(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('roleId') roleId: string,
@@ -71,6 +103,7 @@ export class StaffController {
   }
 
   @Post('staff')
+  @RequirePermission(PERMISSIONS.STAFF_CREATE)
   createStaff(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Body() createStaffDto: CreateStaffDto,
@@ -84,6 +117,7 @@ export class StaffController {
   }
 
   @Get('staff')
+  @RequirePermission(PERMISSIONS.STAFF_READ)
   getStaffList(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Req() req: AuthenticatedRequest,
@@ -92,6 +126,7 @@ export class StaffController {
   }
 
   @Patch('staff/:staffId')
+  @RequirePermission(PERMISSIONS.STAFF_UPDATE)
   updateStaff(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('staffId') staffId: string,
@@ -107,6 +142,7 @@ export class StaffController {
   }
 
   @Delete('staff/:staffId')
+  @RequirePermission(PERMISSIONS.STAFF_DELETE)
   deleteStaff(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('staffId') staffId: string,
@@ -116,6 +152,7 @@ export class StaffController {
   }
 
   @Patch('staff/:staffId/photo')
+  @RequirePermission(PERMISSIONS.STAFF_UPDATE)
   @UseInterceptors(FileInterceptor('photo'))
   uploadPhoto(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
@@ -125,9 +162,9 @@ export class StaffController {
         validators: [
           new MaxFileSizeValidator({
             maxSize: 5 * 1024 * 1024,
-            message: 'File is too large. Max size 5MB.',
+            message: 'errors.file_too_large',
           }),
-          new FileTypeValidator({ fileType: '.(png|jpeg|jpg|webp)' }),
+          new FileSignatureValidator(),
         ],
       }),
     )

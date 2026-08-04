@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
@@ -6,19 +7,14 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
-import { Server, Socket } from 'socket.io';
-import { UsersService } from '../users/users.service';
-import { LiveMonitorService } from './live-monitor.service';
-import { getAllowedCorsOrigins } from '../common/cors';
+import type { Server, Socket } from 'socket.io';
+import { UsersService } from 'src/users/users.service';
+import { LiveMonitorService } from 'src/live-monitor/live-monitor.service';
+import { getAllowedCorsOrigins } from 'src/common/cors';
 
-type LiveMonitorSnapshot = Awaited<
-  ReturnType<LiveMonitorService['getTablesWithActiveOrdersSnapshot']>
->;
-
-type SubscriptionPayload = {
+interface SubscriptionPayload {
   restaurantId: number | string;
-};
+}
 
 @WebSocketGateway({
   namespace: '/live-monitor',
@@ -40,28 +36,24 @@ export class LiveMonitorGateway implements OnGatewayConnection {
 
   async handleConnection(client: Socket) {
     try {
-      const token = this.extractCookieValue(
-        client.handshake.headers.cookie,
-        'gustio_session',
-      );
-
+      let token = client.handshake.auth?.token;
       if (!token) {
-        throw new Error('Session token is required');
+        token = this.extractCookieValue(client.handshake.headers.cookie, 'gustio_session');
+      }
+      
+      if (!token) {
+        throw new Error('errors.session_token_required');
       }
 
       const user = await this.usersService.validateSessionToken(token);
       client.data.userId = user.id;
 
       const restaurantId = Number(client.handshake.auth?.restaurantId);
-
       if (!restaurantId || Number.isNaN(restaurantId)) {
         return;
       }
 
-      await this.liveMonitorService.ensureRestaurantAccess(
-        restaurantId,
-        user.id,
-      );
+      await this.liveMonitorService.ensureRestaurantAccess(restaurantId, user.id);
       await client.join(this.getRestaurantRoom(restaurantId));
     } catch {
       client.disconnect(true);
@@ -75,14 +67,11 @@ export class LiveMonitorGateway implements OnGatewayConnection {
   ) {
     const restaurantId = Number(payload?.restaurantId);
     const userId = Number(client.data.userId);
-
     if (!restaurantId || Number.isNaN(restaurantId) || Number.isNaN(userId)) {
-      return { ok: false, message: 'Invalid payload' };
+      return { ok: false, message: 'errors.invalid_payload' };
     }
-
     await this.liveMonitorService.ensureRestaurantAccess(restaurantId, userId);
     await client.join(this.getRestaurantRoom(restaurantId));
-
     return { ok: true, restaurantId };
   }
 
@@ -92,11 +81,9 @@ export class LiveMonitorGateway implements OnGatewayConnection {
     @MessageBody() payload: SubscriptionPayload,
   ) {
     const restaurantId = Number(payload?.restaurantId);
-
     if (!restaurantId || Number.isNaN(restaurantId)) {
-      return { ok: false, message: 'Invalid payload' };
+      return { ok: false, message: 'errors.invalid_payload' };
     }
-
     await client.leave(this.getRestaurantRoom(restaurantId));
     return { ok: true, restaurantId };
   }
@@ -105,25 +92,18 @@ export class LiveMonitorGateway implements OnGatewayConnection {
     restaurantId: number,
     changeType: 'created' | 'updated' | 'deleted',
     orderId: string,
+    tableId: string,
   ) {
+    const tableSnapshot = await this.liveMonitorService.getSingleTableSnapshot(restaurantId, tableId);
     const room = this.getRestaurantRoom(restaurantId);
-    const snapshot =
-      await this.liveMonitorService.getTablesWithActiveOrdersSnapshot(
-        restaurantId,
-      );
 
     this.server.to(room).emit('live-monitor:orders-changed', {
       restaurantId,
       changeType,
       orderId,
+      tableId,
+      tableSnapshot,
       emittedAt: new Date().toISOString(),
-      snapshot,
-    } satisfies {
-      restaurantId: number;
-      changeType: 'created' | 'updated' | 'deleted';
-      orderId: string;
-      emittedAt: string;
-      snapshot: LiveMonitorSnapshot;
     });
   }
 
@@ -132,24 +112,17 @@ export class LiveMonitorGateway implements OnGatewayConnection {
   }
 
   private extractCookieValue(cookieHeader: string | undefined, key: string) {
-    if (!cookieHeader) {
-      return null;
-    }
-
+    if (!cookieHeader) return null;
     const keyValue = cookieHeader
       .split(';')
       .map((chunk) => chunk.trim())
       .find((chunk) => chunk.startsWith(`${key}=`));
-
-    if (!keyValue) {
-      return null;
-    }
-
+    if (!keyValue) return null;
     const rawValue = keyValue.slice(key.length + 1);
     try {
       return decodeURIComponent(rawValue);
     } catch {
-      this.logger.warn('Failed to decode session cookie value');
+      this.logger.warn('errors.failed_decode_session_cookie');
       return rawValue;
     }
   }

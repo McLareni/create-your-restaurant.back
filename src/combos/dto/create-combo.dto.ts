@@ -5,35 +5,33 @@ import {
   IsArray,
   ValidateNested,
   Min,
+  IsUUID,
+  IsNotEmpty,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ComboPriceType } from '@prisma/client';
 
 class ComboDishDto {
-  @IsString()
+  @IsUUID(4, { message: 'errors.validation_uuid' })
   id!: string;
-
-  @IsString()
-  name!: string;
-
-  @IsNumber()
-  @Min(0)
-  price!: number;
 }
 
 export class CreateComboDto {
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
+  @IsNotEmpty({ message: 'errors.validation_required' })
+  @MaxLength(120, { message: 'errors.validation_max_length' })
   name!: string;
 
-  @IsEnum(ComboPriceType)
+  @IsEnum(ComboPriceType, { message: 'errors.validation_enum' })
   priceType!: ComboPriceType;
 
-  @IsNumber()
-  @Min(0)
+  @IsNumber({}, { message: 'errors.validation_number' })
+  @Min(0, { message: 'errors.validation_min_0' })
   priceValue!: number;
 
-  @IsArray()
-  @ValidateNested({ each: true })
+  @IsArray({ message: 'errors.validation_array' })
+  @ValidateNested({ each: true, message: 'errors.validation_nested' })
   @Type(() => ComboDishDto)
   dishes!: ComboDishDto[];
 }

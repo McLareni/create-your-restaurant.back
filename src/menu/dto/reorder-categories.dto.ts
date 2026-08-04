@@ -4,19 +4,19 @@ import { IsArray, IsInt, IsString, Min, ValidateNested } from 'class-validator';
 
 export class CategoryOrderDto {
   @ApiProperty()
-  @IsString()
+  @IsString({ message: 'errors.validation_string' })
   id!: string;
 
   @ApiProperty()
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'errors.validation_int' })
+  @Min(0, { message: 'errors.validation_min_0' })
   sortOrder!: number;
 }
 
 export class ReorderCategoriesDto {
   @ApiProperty({ type: [CategoryOrderDto] })
-  @IsArray()
-  @ValidateNested({ each: true })
+  @IsArray({ message: 'errors.validation_array' })
+  @ValidateNested({ each: true, message: 'errors.validation_nested' })
   @Type(() => CategoryOrderDto)
   items!: CategoryOrderDto[];
 }

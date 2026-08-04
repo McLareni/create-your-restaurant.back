@@ -5,6 +5,7 @@ import {
   ParseIntPipe,
   Patch,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -14,12 +15,16 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
-import { LiveMonitorGateway } from './live-monitor.gateway';
-import { LiveMonitorService } from './live-monitor.service';
+import { LiveMonitorGateway } from 'src/live-monitor/live-monitor.gateway';
+import { LiveMonitorService } from 'src/live-monitor/live-monitor.service';
+import { PermissionsGuard } from 'src/guards/permissions.guard';
+import { RequirePermission } from 'src/guards/permission.decorator';
+import type { AuthenticatedRequest } from 'src/restaurants/middleware/session-auth.middleware';
+import { PERMISSIONS } from 'src/common/constants/permissions.constants';
 
 @ApiTags('Live monitor')
 @Controller('restaurants/:restaurantId/live-monitor')
+@UseGuards(PermissionsGuard)
 export class LiveMonitorController {
   constructor(
     private readonly liveMonitorService: LiveMonitorService,
@@ -32,6 +37,7 @@ export class LiveMonitorController {
   @ApiCookieAuth('gustio_session')
   @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
   @Get('tables')
+  @RequirePermission(PERMISSIONS.LIVE_READ)
   getTablesWithActiveOrders(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Req() request: AuthenticatedRequest,
@@ -58,6 +64,7 @@ export class LiveMonitorController {
     description: 'Waiter call resolved successfully',
   })
   @Patch('tables/:tableId/waiter-call/resolve')
+  @RequirePermission(PERMISSIONS.LIVE_RESOLVE)
   async resolveWaiterCall(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('tableId') tableId: string,
@@ -68,13 +75,12 @@ export class LiveMonitorController {
       tableId,
       request.user.id,
     );
-
     await this.liveMonitorGateway.emitOrdersChanged(
       restaurantId,
       'updated',
       tableId,
+      tableId,
     );
-
     return result;
   }
 }

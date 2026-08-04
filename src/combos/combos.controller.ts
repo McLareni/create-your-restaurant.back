@@ -2,74 +2,73 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Param,
   Patch,
   Post,
-  Get,
-  Req,
-  ParseIntPipe,
+  UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
-import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { CombosService } from './combos.service';
-import { CreateComboDto } from './dto/create-combo.dto';
-import { UpdateComboDto } from './dto/update-combo.dto';
-import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
+import {
+  ApiCookieAuth,
+  ApiHeader,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import { CombosService } from 'src/combos/combos.service';
+import { CreateComboDto } from 'src/combos/dto/create-combo.dto';
+import { UpdateComboDto } from 'src/combos/dto/update-combo.dto';
+import { PermissionsGuard } from 'src/guards/permissions.guard';
+import { RequirePermission } from 'src/guards/permission.decorator';
+import { ActiveRestaurantId } from 'src/common/decorators/active-restaurant-id.decorator';
+import { PERMISSIONS } from 'src/common/constants/permissions.constants';
 
 @ApiTags('Combos')
-@Controller('restaurants/:restaurantId/combos')
+@ApiHeader({ name: 'x-restaurant-id', required: true })
+@Controller('combos')
+@UseGuards(PermissionsGuard)
 export class CombosController {
   constructor(private readonly combosService: CombosService) {}
 
-  @ApiOperation({ summary: 'Get all combos for a restaurant' })
+  @ApiOperation({ summary: 'api.combos.get_all' })
   @ApiCookieAuth('gustio_session')
+  @RequirePermission(PERMISSIONS.MENU_READ)
   @Get()
-  getAll(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.combosService.getAll(restaurantId, request.user.id);
+  getAll(@ActiveRestaurantId() restaurantId: number) {
+    return this.combosService.getAll(restaurantId);
   }
 
-  @ApiOperation({ summary: 'Create a combo pack' })
+  @ApiOperation({ summary: 'api.combos.create' })
   @ApiCookieAuth('gustio_session')
+  @RequirePermission(PERMISSIONS.MENU_CREATE)
   @Post()
   create(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @ActiveRestaurantId() restaurantId: number,
     @Body() createComboDto: CreateComboDto,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.combosService.create(
-      restaurantId,
-      createComboDto,
-      request.user.id,
-    );
+    return this.combosService.create(restaurantId, createComboDto);
   }
 
-  @ApiOperation({ summary: 'Update a combo pack' })
+  @ApiOperation({ summary: 'api.combos.update' })
   @ApiCookieAuth('gustio_session')
+  @RequirePermission(PERMISSIONS.MENU_UPDATE)
   @Patch(':id')
   update(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Param('id') id: string,
+    @ActiveRestaurantId() restaurantId: number,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateComboDto: UpdateComboDto,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.combosService.update(
-      restaurantId,
-      id,
-      updateComboDto,
-      request.user.id,
-    );
+    return this.combosService.update(restaurantId, id, updateComboDto);
   }
 
-  @ApiOperation({ summary: 'Delete a combo pack' })
+  @ApiOperation({ summary: 'api.combos.delete' })
   @ApiCookieAuth('gustio_session')
+  @RequirePermission(PERMISSIONS.MENU_DELETE)
   @Delete(':id')
   delete(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Param('id') id: string,
-    @Req() request: AuthenticatedRequest,
+    @ActiveRestaurantId() restaurantId: number,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.combosService.delete(restaurantId, id, request.user.id);
+    return this.combosService.delete(restaurantId, id);
   }
 }

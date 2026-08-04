@@ -7,63 +7,56 @@ import {
   ParseIntPipe,
   Patch,
   Post,
-  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { TablesService } from './tables.service';
-import { CreateTableDto } from './dto/create-table.dto';
-import { UpdateTableDto } from './dto/update-table.dto';
-import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
+import { TablesService } from 'src/tables/tables.service';
+import { CreateTableDto } from 'src/tables/dto/create-table.dto';
+import { UpdateTableDto } from 'src/tables/dto/update-table.dto';
+import { PermissionsGuard } from 'src/guards/permissions.guard';
+import { RequirePermission } from 'src/guards/permission.decorator';
+import { PERMISSIONS } from 'src/common/constants/permissions.constants';
 
 @Controller('restaurants/:restaurantId/dining-table')
+@UseGuards(PermissionsGuard)
 export class TablesController {
   constructor(private readonly tablesService: TablesService) {}
 
   @Post()
+  @RequirePermission(PERMISSIONS.TABLES_MANAGE)
   create(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Body() createTableDto: CreateTableDto,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.tablesService.create(
-      restaurantId,
-      createTableDto,
-      request.user.id,
-    );
+    return this.tablesService.create(restaurantId, createTableDto);
   }
 
   @Get()
-  findAll(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.tablesService.findAll(restaurantId, request.user.id);
+  @RequirePermission(PERMISSIONS.TABLES_READ)
+  findAll(@Param('restaurantId', ParseIntPipe) restaurantId: number) {
+    return this.tablesService.findAll(restaurantId);
   }
 
   @Patch(':id')
+  @RequirePermission(PERMISSIONS.TABLES_MANAGE)
   update(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('id') id: string,
     @Body() updateTableDto: UpdateTableDto,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.tablesService.update(
-      restaurantId,
-      id,
-      updateTableDto,
-      request.user.id,
-    );
+    return this.tablesService.update(restaurantId, id, updateTableDto);
   }
 
   @Delete(':id')
+  @RequirePermission(PERMISSIONS.TABLES_MANAGE)
   remove(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('id') id: string,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.tablesService.delete(restaurantId, id, request.user.id);
+    return this.tablesService.delete(restaurantId, id);
   }
 
   @Get(':id/exists')
+  @RequirePermission(PERMISSIONS.TABLES_READ)
   checkTableExists(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('id') id: string,

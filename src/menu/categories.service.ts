@@ -1,49 +1,45 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { CreateCategoryDto } from './dto/create-category.dto';
-import { UpdateCategoryDto } from './dto/update-category.dto';
-import { ReorderCategoriesDto } from './dto/reorder-categories.dto';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
+import type { CreateCategoryDto } from 'src/menu/dto/create-category.dto';
+import type { UpdateCategoryDto } from 'src/menu/dto/update-category.dto';
+import type { ReorderCategoriesDto } from 'src/menu/dto/reorder-categories.dto';
 
 @Injectable()
 export class CategoriesService {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async createCategory(createCategoryDto: CreateCategoryDto, userId: number) {
-    const restaurant = await this.prismaService.restaurant.findFirst({
-      where: { id: createCategoryDto.restaurantId, ownerId: userId },
-      select: { id: true },
-    });
-
-    if (!restaurant) throw new NotFoundException('Restaurant not found');
-
+  async createCategory(
+    restaurantId: number,
+    createCategoryDto: CreateCategoryDto,
+  ) {
     const category = await this.prismaService.category.create({
       data: {
-        restaurantId: createCategoryDto.restaurantId,
+        restaurantId,
         name: createCategoryDto.name.trim(),
         sortOrder: createCategoryDto.sortOrder ?? 0,
       },
     });
-
-    return { message: 'Category created successfully', category };
+    return { message: 'success.category_created', category };
   }
 
   async reorderCategories(
+    restaurantId: number,
     reorderCategoriesDto: ReorderCategoriesDto,
-    userId: number,
   ) {
     const categoryIds = reorderCategoriesDto.items.map((i) => i.id);
-    const categories = await this.prismaService.category.findMany({
+    const validCount = await this.prismaService.category.count({
       where: {
         id: { in: categoryIds },
-        restaurant: { ownerId: userId },
+        restaurantId,
       },
-      select: { id: true },
     });
-
-    if (categories.length !== categoryIds.length) {
-      throw new NotFoundException('Some categories not found or access denied');
+    if (validCount !== categoryIds.length) {
+      throw new BadRequestException('errors.invalid_categories_payload');
     }
-
     await this.prismaService.$transaction(
       reorderCategoriesDto.items.map((item) =>
         this.prismaService.category.update({
@@ -52,22 +48,20 @@ export class CategoriesService {
         }),
       ),
     );
-
-    return { message: 'Categories reordered successfully' };
+    return { message: 'success.categories_reordered' };
   }
 
   async updateCategory(
+    restaurantId: number,
     categoryId: string,
     updateCategoryDto: UpdateCategoryDto,
-    userId: number,
   ) {
     const category = await this.prismaService.category.findFirst({
-      where: { id: categoryId, restaurant: { ownerId: userId } },
-      select: { id: true },
+      where: { id: categoryId, restaurantId },
     });
-
-    if (!category) throw new NotFoundException('Category not found');
-
+    if (!category) {
+      throw new NotFoundException('errors.category_not_found');
+    }
     const updatedCategory = await this.prismaService.category.update({
       where: { id: categoryId },
       data: {
@@ -77,25 +71,22 @@ export class CategoriesService {
         sortOrder: updateCategoryDto.sortOrder,
       },
     });
-
     return {
-      message: 'Category updated successfully',
+      message: 'success.category_updated',
       category: updatedCategory,
     };
   }
 
-  async deleteCategory(categoryId: string, userId: number) {
+  async deleteCategory(restaurantId: number, categoryId: string) {
     const category = await this.prismaService.category.findFirst({
-      where: { id: categoryId, restaurant: { ownerId: userId } },
-      select: { id: true },
+      where: { id: categoryId, restaurantId },
     });
-
-    if (!category) throw new NotFoundException('Category not found');
-
+    if (!category) {
+      throw new NotFoundException('errors.category_not_found');
+    }
     await this.prismaService.category.delete({
       where: { id: categoryId },
     });
-
-    return { message: 'Category deleted successfully' };
+    return { message: 'success.category_deleted' };
   }
 }

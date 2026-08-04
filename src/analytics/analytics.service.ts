@@ -1,67 +1,87 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable } from '@nestjs/common';
 import { OrderStatus } from '@prisma/client';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class AnalyticsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async checkAccess(restaurantId: number, userId: number) {
-    const restaurant = await this.prisma.restaurant.findFirst({
-      where: { id: restaurantId, ownerId: userId },
-    });
-    if (!restaurant) throw new ForbiddenException('Access denied');
-  }
-
-  async getSummary(restaurantId: number, userId: number) {
-    await this.checkAccess(restaurantId, userId);
-
+  async getSummary(restaurantId: number) {
     const aggregateResult = await this.prisma.order.aggregate({
       where: { restaurantId, status: OrderStatus.COMPLETED },
       _sum: { totalAmount: true },
       _count: { id: true },
     });
 
-    const totalRevenue = aggregateResult._sum.totalAmount || 0;
-    const totalOrders = aggregateResult._count.id || 0;
+    const totalRevenue = aggregateResult._sum.totalAmount ?? 0;
+    const totalOrders = aggregateResult._count.id ?? 0;
     const averageCheck = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     sevenDaysAgo.setHours(0, 0, 0, 0);
 
-    const recentOrders = await this.prisma.order.findMany({
+    const topItemsAggregation = await this.prisma.orderItem.groupBy({
+      by: ['dishId'],
       where: {
-        restaurantId,
-        status: OrderStatus.COMPLETED,
-        createdAt: { gte: sevenDaysAgo },
+        order: {
+          restaurantId,
+          status: OrderStatus.COMPLETED,
+          createdAt: { gte: sevenDaysAgo },
+        },
       },
-      include: { items: { include: { dish: true } } },
+      _sum: {
+        quantity: true,
+      },
+      orderBy: {
+        _sum: {
+          quantity: 'desc',
+        },
+      },
+      take: 5,
     });
 
-    const dishCounts: Record<
-      string,
-      { name: string; count: number; revenue: number }
-    > = {};
-    for (const order of recentOrders) {
-      for (const item of order.items) {
-        if (!dishCounts[item.dishId]) {
-          dishCounts[item.dishId] = {
-            name: item.dish.name,
-            count: 0,
-            revenue: 0,
-          };
-        }
-        dishCounts[item.dishId].count += item.quantity;
-        dishCounts[item.dishId].revenue += item.quantity * item.unitPrice;
-      }
+    const dishIds = topItemsAggregation.map((item) => item.dishId);
+    const dishesInfo = await this.prisma.dish.findMany({
+      where: { id: { in: dishIds } },
+      select: { id: true, name: true, price: true },
+    });
+
+    const dishMap = new Map(dishesInfo.map((d) => [d.id, d]));
+
+    const topDishes = topItemsAggregation.map((agg) => {
+      const dish = dishMap.get(agg.dishId);
+      const count = agg._sum.quantity ?? 0;
+      return {
+        name: dish?.name ?? 'Unknown',
+        count,
+        revenue: count * (dish?.price ?? 0),
+      };
+    });
+
+    const rawChartData = await this.prisma.$queryRaw<
+      { day: Date; revenue: number }[]
+    >`
+      SELECT DATE_TRUNC('day', "createdAt") as day, SUM("totalAmount") as revenue
+      FROM "Order"
+      WHERE "restaurantId" = ${restaurantId}
+        AND "status" = 'COMPLETED'::"OrderStatus"
+        AND "createdAt" >= ${sevenDaysAgo}
+      GROUP BY DATE_TRUNC('day', "createdAt")
+      ORDER BY day ASC;
+    `;
+
+    const chartMap = new Map<string, number>();
+    for (const row of rawChartData) {
+      const dateString = new Date(row.day).toLocaleDateString('uk-UA', {
+        day: '2-digit',
+        month: '2-digit',
+      });
+      chartMap.set(dateString, Number(row.revenue));
     }
 
-    const topDishes = Object.values(dishCounts)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-
     const chartData: { date: string; revenue: number }[] = [];
+
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
@@ -69,14 +89,11 @@ export class AnalyticsService {
         day: '2-digit',
         month: '2-digit',
       });
-      const startOfDay = new Date(d.setHours(0, 0, 0, 0));
-      const endOfDay = new Date(d.setHours(23, 59, 59, 999));
 
-      const dayOrders = recentOrders.filter(
-        (o) => o.createdAt >= startOfDay && o.createdAt <= endOfDay,
-      );
-      const revenue = dayOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-      chartData.push({ date: dateString, revenue });
+      chartData.push({
+        date: dateString,
+        revenue: chartMap.get(dateString) ?? 0,
+      });
     }
 
     return {

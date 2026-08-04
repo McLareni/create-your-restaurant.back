@@ -1,4 +1,3 @@
-// @ts-check
 import eslint from '@eslint/js';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import globals from 'globals';
@@ -6,7 +5,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['eslint.config.mjs'],
+    ignores: ['eslint.config.mjs', 'scripts/**'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -33,7 +32,14 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
-      "prettier/prettier": ["error", { endOfLine: "auto" }],
+      'prettier/prettier': ['error', { endOfLine: 'auto' }],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "Decorator > CallExpression[callee.name=/^(IsString|IsNotEmpty|IsNumber|IsInt|IsBoolean|IsEnum|IsArray|IsUUID|IsEmail|Min|Max|MinLength|MaxLength|Matches|ValidateNested)$/]:not(:has(Property[key.name='message'][value.value=/^(errors|success|responses|auth|api)\\./]))",
+          message: 'errors.eslint_class_validator_missing_translation_key'
+        }
+      ]
     },
   },
 );

@@ -4,118 +4,71 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
-  Req,
+  UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
-  ApiBody,
   ApiCookieAuth,
+  ApiHeader,
   ApiOperation,
-  ApiParam,
-  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
-import { CreateModifierGroupDto } from './dto/create-modifier.dto';
-import { UpdateModifierGroupDto } from './dto/update-modifier.dto';
-import { AttachModifierDto } from './dto/attach-modifier.dto';
-import { ModifiersService } from './modifiers.service';
+import { CreateModifierGroupDto } from 'src/modifiers/dto/create-modifier.dto';
+import { UpdateModifierGroupDto } from 'src/modifiers/dto/update-modifier.dto';
+import { ModifiersService } from 'src/modifiers/modifiers.service';
+import { PermissionsGuard } from 'src/guards/permissions.guard';
+import { RequirePermission } from 'src/guards/permission.decorator';
+import { ActiveRestaurantId } from 'src/common/decorators/active-restaurant-id.decorator';
+import { PERMISSIONS } from 'src/common/constants/permissions.constants';
 
 @ApiTags('Modifiers')
-@Controller('restaurants/:restaurantId/modifiers')
+@ApiHeader({ name: 'x-restaurant-id', required: true })
+@Controller('modifiers')
+@UseGuards(PermissionsGuard)
 export class ModifiersController {
   constructor(private readonly modifiersService: ModifiersService) {}
 
-  @ApiOperation({ summary: 'Create modifier group' })
+  @ApiOperation({ summary: 'api.modifiers.create_group' })
   @ApiCookieAuth('gustio_session')
+  @RequirePermission(PERMISSIONS.MENU_CREATE)
   @Post()
   createGroup(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @ActiveRestaurantId() restaurantId: number,
     @Body() createDto: CreateModifierGroupDto,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.modifiersService.createGroup(
-      restaurantId,
-      createDto,
-      request.user.id,
-    );
+    return this.modifiersService.createGroup(restaurantId, createDto);
   }
 
-  @ApiOperation({ summary: 'Get all modifier groups for restaurant' })
+  @ApiOperation({ summary: 'api.modifiers.get_groups' })
   @ApiCookieAuth('gustio_session')
+  @RequirePermission(PERMISSIONS.MENU_READ)
   @Get()
-  getGroups(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.modifiersService.getGroups(restaurantId, request.user.id);
+  getGroups(@ActiveRestaurantId() restaurantId: number) {
+    return this.modifiersService.getGroups(restaurantId);
   }
 
-  @ApiOperation({ summary: 'Update modifier group' })
+  @ApiOperation({ summary: 'api.modifiers.update_group' })
   @ApiCookieAuth('gustio_session')
+  @RequirePermission(PERMISSIONS.MENU_UPDATE)
   @Patch(':groupId')
   updateGroup(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Param('groupId') groupId: string,
+    @ActiveRestaurantId() restaurantId: number,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
     @Body() updateDto: UpdateModifierGroupDto,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.modifiersService.updateGroup(
-      restaurantId,
-      groupId,
-      updateDto,
-      request.user.id,
-    );
+    return this.modifiersService.updateGroup(restaurantId, groupId, updateDto);
   }
 
-  @ApiOperation({ summary: 'Delete modifier group' })
+  @ApiOperation({ summary: 'api.modifiers.delete_group' })
   @ApiCookieAuth('gustio_session')
+  @RequirePermission(PERMISSIONS.MENU_DELETE)
   @Delete(':groupId')
   deleteGroup(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Param('groupId') groupId: string,
-    @Req() request: AuthenticatedRequest,
+    @ActiveRestaurantId() restaurantId: number,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
   ) {
-    return this.modifiersService.deleteGroup(
-      restaurantId,
-      groupId,
-      request.user.id,
-    );
-  }
-
-  @ApiOperation({ summary: 'Attach modifier group to dish' })
-  @ApiCookieAuth('gustio_session')
-  @Post('dish/:dishId')
-  attachToDish(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Param('dishId') dishId: string,
-    @Body() attachDto: AttachModifierDto,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.modifiersService.attachToDish(
-      restaurantId,
-      dishId,
-      attachDto.modifierGroupId,
-      request.user.id,
-    );
-  }
-
-  @ApiOperation({ summary: 'Detach modifier group from dish' })
-  @ApiCookieAuth('gustio_session')
-  @Delete('dish/:dishId/:modifierGroupId')
-  detachFromDish(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Param('dishId') dishId: string,
-    @Param('modifierGroupId') modifierGroupId: string,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.modifiersService.detachFromDish(
-      restaurantId,
-      dishId,
-      modifierGroupId,
-      request.user.id,
-    );
+    return this.modifiersService.deleteGroup(restaurantId, groupId);
   }
 }

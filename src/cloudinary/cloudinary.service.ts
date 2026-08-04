@@ -2,14 +2,11 @@ import {
   BadGatewayException,
   Injectable,
   InternalServerErrorException,
-  OnModuleInit,
 } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  v2 as cloudinary,
-  type UploadApiResponse,
-  type UploadApiErrorResponse,
-} from 'cloudinary';
+import { v2 as cloudinary } from 'cloudinary';
+import type { UploadApiResponse, UploadApiErrorResponse } from 'cloudinary';
 import { Readable } from 'node:stream';
 
 export type UploadedStaffImage = {
@@ -44,7 +41,9 @@ export class CloudinaryService implements OnModuleInit {
     } else if (cloudinaryUrl) {
       cloudinary.config(cloudinaryUrl);
     } else {
-      throw new InternalServerErrorException('Cloudinary is not configured');
+      throw new InternalServerErrorException(
+        'errors.cloudinary_not_configured',
+      );
     }
   }
 
@@ -60,21 +59,22 @@ export class CloudinaryService implements OnModuleInit {
           result: UploadApiResponse | undefined,
         ) => {
           if (error || !result) {
-            const detail =
-              error?.message ||
-              error?.http_code?.toString() ||
-              'unknown Cloudinary error';
-            reject(
-              new BadGatewayException(`Failed to upload image: ${detail}`),
-            );
+            reject(new BadGatewayException('errors.cloudinary_upload_failed'));
             return;
           }
-
           resolve(result);
         },
       );
 
       Readable.from(fileBuffer).pipe(uploadStream);
     });
+  }
+
+  async deleteImage(publicId: string) {
+    try {
+      return await cloudinary.uploader.destroy(publicId);
+    } catch {
+      throw new BadGatewayException('errors.cloudinary_delete_failed');
+    }
   }
 }

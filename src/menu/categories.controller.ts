@@ -5,7 +5,7 @@ import {
   Param,
   Patch,
   Post,
-  Req,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -15,27 +15,32 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import type { AuthenticatedRequest } from '../restaurants/middleware/session-auth.middleware';
-import { CategoriesService } from './categories.service';
-import { CreateCategoryDto } from './dto/create-category.dto';
-import { UpdateCategoryDto } from './dto/update-category.dto';
-import { ReorderCategoriesDto } from './dto/reorder-categories.dto';
+import { PermissionsGuard } from 'src/guards/permissions.guard';
+import { RequirePermission } from 'src/guards/permission.decorator';
+import { CategoriesService } from 'src/menu/categories.service';
+import { CreateCategoryDto } from 'src/menu/dto/create-category.dto';
+import { UpdateCategoryDto } from 'src/menu/dto/update-category.dto';
+import { ReorderCategoriesDto } from 'src/menu/dto/reorder-categories.dto';
+import { ActiveRestaurantId } from 'src/common/decorators/active-restaurant-id.decorator';
+import { PERMISSIONS } from 'src/common/constants/permissions.constants';
 
 @ApiTags('Categories')
 @Controller('menu/owner/categories')
+@UseGuards(PermissionsGuard)
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @ApiOperation({ summary: 'Create category for owner' })
   @ApiCookieAuth('gustio_session')
+  @RequirePermission(PERMISSIONS.MENU_CREATE)
   @Post()
   createCategory(
+    @ActiveRestaurantId() restaurantId: number,
     @Body() createCategoryDto: CreateCategoryDto,
-    @Req() request: AuthenticatedRequest,
   ) {
     return this.categoriesService.createCategory(
+      restaurantId,
       createCategoryDto,
-      request.user.id,
     );
   }
 
@@ -46,41 +51,44 @@ export class CategoriesController {
     status: 200,
     description: 'Categories reordered successfully',
   })
+  @RequirePermission(PERMISSIONS.MENU_UPDATE)
   @Patch('reorder')
   reorderCategories(
+    @ActiveRestaurantId() restaurantId: number,
     @Body() reorderCategoriesDto: ReorderCategoriesDto,
-    @Req() request: AuthenticatedRequest,
   ) {
     return this.categoriesService.reorderCategories(
+      restaurantId,
       reorderCategoriesDto,
-      request.user.id,
     );
   }
 
   @ApiOperation({ summary: 'Update category for owner' })
   @ApiCookieAuth('gustio_session')
   @ApiParam({ name: 'categoryId', type: String, example: 'cat_1' })
+  @RequirePermission(PERMISSIONS.MENU_UPDATE)
   @Patch(':categoryId')
   updateCategory(
+    @ActiveRestaurantId() restaurantId: number,
     @Param('categoryId') categoryId: string,
     @Body() updateCategoryDto: UpdateCategoryDto,
-    @Req() request: AuthenticatedRequest,
   ) {
     return this.categoriesService.updateCategory(
+      restaurantId,
       categoryId,
       updateCategoryDto,
-      request.user.id,
     );
   }
 
   @ApiOperation({ summary: 'Delete category for owner' })
   @ApiCookieAuth('gustio_session')
   @ApiParam({ name: 'categoryId', type: String, example: 'cat_1' })
+  @RequirePermission(PERMISSIONS.MENU_DELETE)
   @Delete(':categoryId')
   deleteCategory(
+    @ActiveRestaurantId() restaurantId: number,
     @Param('categoryId') categoryId: string,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.categoriesService.deleteCategory(categoryId, request.user.id);
+    return this.categoriesService.deleteCategory(restaurantId, categoryId);
   }
 }

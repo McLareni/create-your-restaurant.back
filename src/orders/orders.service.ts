@@ -1,14 +1,20 @@
 import {
-  Injectable,
   BadRequestException,
+  Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { OrderStatus, OrderType } from '@prisma/client';
-import { LiveMonitorGateway } from '../live-monitor/live-monitor.gateway';
-import { PrismaService } from '../prisma/prisma.service';
-import { AppendOrderItemsDto } from './dto/append-order-items.dto';
-import { CreateOrderDto } from './dto/create-order.dto';
-import { UpdateOrderDto } from './dto/update-order.dto';
+import { OrderStatus, OrderType, PrismaClient } from '@prisma/client';
+import { LiveMonitorGateway } from 'src/live-monitor/live-monitor.gateway';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { DataMappingUtil } from 'src/common/utils/mapping.util';
+import type { AppendOrderItemsDto } from 'src/orders/dto/append-order-items.dto';
+import type { CreateOrderDto } from 'src/orders/dto/create-order.dto';
+import type { UpdateOrderDto } from 'src/orders/dto/update-order.dto';
+
+type TxClient = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
 
 @Injectable()
 export class OrdersService {
@@ -22,10 +28,10 @@ export class OrdersService {
     createOrderDto: CreateOrderDto,
   ) {
     if (!createOrderDto.tableId) {
-      throw new BadRequestException('Table ID is required for public orders');
+      throw new BadRequestException('errors.table_id_required');
     }
     if (createOrderDto.type && createOrderDto.type !== OrderType.DINE_IN) {
-      throw new BadRequestException('Public orders support only DINE_IN type');
+      throw new BadRequestException('errors.only_dine_in_supported');
     }
     return this.createOrderInternal(restaurantId, {
       ...createOrderDto,
@@ -38,7 +44,7 @@ export class OrdersService {
     createOrderDto: CreateOrderDto,
     userId: number,
   ) {
-    await this.ensureRestaurantOwner(restaurantId, userId);
+    await this.ensureRestaurantAccess(restaurantId, userId);
     return this.createOrderInternal(restaurantId, createOrderDto);
   }
 
@@ -47,76 +53,84 @@ export class OrdersService {
     orderId: string,
     appendOrderItemsDto: AppendOrderItemsDto,
   ) {
-    const existingOrder = await this.prisma.order.findFirst({
-      where: { id: orderId, restaurantId },
-      select: {
-        id: true,
-        tableId: true,
-        status: true,
-      },
-    });
+    const result = await this.prisma.$transaction(async (tx) => {
+      const existingOrder = await tx.order.findFirst({
+        where: { id: orderId, restaurantId },
+        select: {
+          id: true,
+          tableId: true,
+          status: true,
+        },
+      });
 
-    if (!existingOrder) {
-      throw new NotFoundException('Order not found');
-    }
+      if (!existingOrder) {
+        throw new NotFoundException('errors.order_not_found');
+      }
+      if (
+        existingOrder.status === OrderStatus.COMPLETED ||
+        existingOrder.status === OrderStatus.CANCELED
+      ) {
+        throw new BadRequestException('errors.order_closed');
+      }
+      if (!existingOrder.tableId) {
+        throw new BadRequestException('errors.order_no_table');
+      }
 
-    if (
-      existingOrder.status === OrderStatus.COMPLETED ||
-      existingOrder.status === OrderStatus.CANCELED
-    ) {
-      throw new BadRequestException('Order is already closed');
-    }
+      await this.ensureActiveTableBelongsToRestaurant(
+        restaurantId,
+        existingOrder.tableId,
+        tx,
+      );
 
-    if (!existingOrder.tableId) {
-      throw new BadRequestException('Order has no table assigned');
-    }
+      const { itemsToCreate, totalAmount } = await this.buildOrderItems(
+        restaurantId,
+        appendOrderItemsDto.items,
+        tx,
+      );
 
-    await this.ensureActiveTableBelongsToRestaurant(
-      restaurantId,
-      existingOrder.tableId,
-    );
-
-    const { itemsToCreate, totalAmount } = await this.buildOrderItems(
-      restaurantId,
-      appendOrderItemsDto.items,
-    );
-
-    const updatedOrder = await this.prisma.order.update({
-      where: { id: orderId },
-      data: {
-        totalAmount: { increment: totalAmount },
-        items: { create: itemsToCreate },
-      },
-      include: {
-        table: { select: { id: true, number: true, type: true } },
-        items: {
-          include: {
-            dish: { select: { id: true, name: true } },
-            modifiers: {
-              include: {
-                modifierOption: { select: { id: true, name: true } },
+      return await tx.order.update({
+        where: { id: orderId },
+        data: {
+          totalAmount: { increment: totalAmount },
+          items: { create: itemsToCreate },
+        },
+        include: {
+          table: { select: { id: true, number: true, type: true } },
+          items: {
+            include: {
+              dish: true,
+              modifiers: {
+                include: {
+                  modifierOption: true,
+                },
               },
             },
           },
         },
-      },
+      });
     });
 
-    await this.liveMonitorGateway.emitOrdersChanged(
-      restaurantId,
-      'updated',
-      updatedOrder.id,
-    );
+    if (result.tableId) {
+      await this.liveMonitorGateway.emitOrdersChanged(
+        restaurantId,
+        'updated',
+        result.id,
+        result.tableId,
+      );
+    }
 
     return {
-      message: 'Items appended successfully',
-      order: this.mapOrder(updatedOrder),
+      message: 'success.items_appended',
+      order: DataMappingUtil.mapOrder(result),
     };
   }
 
   async callWaiterFromPublicMenu(restaurantId: number, tableId: string) {
-    await this.ensureActiveTableBelongsToRestaurant(restaurantId, tableId);
-
+    await this.ensureActiveTableBelongsToRestaurant(
+      restaurantId,
+      tableId,
+      this.prisma,
+    );
     await this.prisma.diningTable.update({
       where: { id: tableId },
       data: {
@@ -129,10 +143,11 @@ export class OrdersService {
       restaurantId,
       'updated',
       tableId,
+      tableId,
     );
 
     return {
-      message: 'Waiter call sent successfully',
+      message: 'success.waiter_called',
       tableId,
     };
   }
@@ -142,12 +157,15 @@ export class OrdersService {
     tableId: string,
     orderCode: string,
   ) {
-    await this.ensureActiveTableBelongsToRestaurant(restaurantId, tableId);
+    await this.ensureActiveTableBelongsToRestaurant(
+      restaurantId,
+      tableId,
+      this.prisma,
+    );
 
     const normalizedCode = orderCode.trim().replace(/^#/, '').toLowerCase();
-
     if (!normalizedCode) {
-      throw new BadRequestException('Order code is required');
+      throw new BadRequestException('errors.order_code_required');
     }
 
     const matchedOrders = await this.prisma.order.findMany({
@@ -169,7 +187,7 @@ export class OrdersService {
     });
 
     if (matchedOrders.length === 0) {
-      throw new NotFoundException('Order not found');
+      throw new NotFoundException('errors.order_not_found');
     }
 
     return {
@@ -182,8 +200,11 @@ export class OrdersService {
     tableId: string,
     orderId: string,
   ) {
-    await this.ensureActiveTableBelongsToRestaurant(restaurantId, tableId);
-
+    await this.ensureActiveTableBelongsToRestaurant(
+      restaurantId,
+      tableId,
+      this.prisma,
+    );
     const order = await this.prisma.order.findFirst({
       where: {
         id: orderId,
@@ -194,10 +215,10 @@ export class OrdersService {
         table: { select: { id: true, number: true, type: true } },
         items: {
           include: {
-            dish: { select: { id: true, name: true } },
+            dish: true,
             modifiers: {
               include: {
-                modifierOption: { select: { id: true, name: true } },
+                modifierOption: true,
               },
             },
           },
@@ -206,11 +227,11 @@ export class OrdersService {
     });
 
     if (!order) {
-      throw new NotFoundException('Order not found');
+      throw new NotFoundException('errors.order_not_found');
     }
 
     return {
-      order: this.mapOrder(order),
+      order: DataMappingUtil.mapOrder(order),
     };
   }
 
@@ -221,62 +242,70 @@ export class OrdersService {
     const orderType = createOrderDto.type ?? OrderType.DINE_IN;
 
     if (orderType === OrderType.DINE_IN && !createOrderDto.tableId) {
-      throw new BadRequestException('Table ID is required for DINE_IN orders');
+      throw new BadRequestException('errors.table_id_required');
     }
 
-    if (createOrderDto.tableId) {
-      await this.ensureActiveTableBelongsToRestaurant(
+    const order = await this.prisma.$transaction(async (tx) => {
+      if (createOrderDto.tableId) {
+        await this.ensureActiveTableBelongsToRestaurant(
+          restaurantId,
+          createOrderDto.tableId,
+          tx,
+        );
+      }
+
+      const { itemsToCreate, totalAmount } = await this.buildOrderItems(
         restaurantId,
-        createOrderDto.tableId,
+        createOrderDto.items,
+        tx,
       );
-    }
 
-    const { itemsToCreate, totalAmount } = await this.buildOrderItems(
-      restaurantId,
-      createOrderDto.items,
-    );
-
-    const order = await this.prisma.order.create({
-      data: {
-        restaurantId,
-        type: orderType,
-        tableId: createOrderDto.tableId,
-        totalAmount,
-        items: { create: itemsToCreate },
-      },
-      include: {
-        table: { select: { id: true, number: true, type: true } },
-        items: {
-          include: {
-            dish: { select: { id: true, name: true } },
-            modifiers: {
-              include: {
-                modifierOption: { select: { id: true, name: true } },
+      return await tx.order.create({
+        data: {
+          restaurantId,
+          type: orderType,
+          tableId: createOrderDto.tableId,
+          totalAmount,
+          items: { create: itemsToCreate },
+        },
+        include: {
+          table: { select: { id: true, number: true, type: true } },
+          items: {
+            include: {
+              dish: true,
+              modifiers: {
+                include: {
+                  modifierOption: true,
+                },
               },
             },
           },
         },
-      },
+      });
     });
 
-    await this.liveMonitorGateway.emitOrdersChanged(
-      restaurantId,
-      'created',
-      order.id,
-    );
+    if (order.tableId) {
+      await this.liveMonitorGateway.emitOrdersChanged(
+        restaurantId,
+        'created',
+        order.id,
+        order.tableId,
+      );
+    }
 
     return {
-      message: 'Order created successfully',
-      order: this.mapOrder(order),
+      message: 'success.order_created',
+      order: DataMappingUtil.mapOrder(order),
     };
   }
 
   private async buildOrderItems(
     restaurantId: number,
     items: CreateOrderDto['items'],
+    tx: TxClient,
   ) {
     const uniqueDishIds = [...new Set(items.map((item) => item.dishId))];
-    const dishes = await this.prisma.dish.findMany({
+    const dishes = await tx.dish.findMany({
       where: {
         id: { in: uniqueDishIds },
         isAvailable: true,
@@ -291,7 +320,7 @@ export class OrdersService {
     });
 
     if (dishes.length !== uniqueDishIds.length) {
-      throw new BadRequestException('Some dishes are unavailable or not found');
+      throw new BadRequestException('errors.dishes_unavailable');
     }
 
     const dishMap = new Map(dishes.map((dish) => [dish.id, dish]));
@@ -306,33 +335,29 @@ export class OrdersService {
     const modifierOptionMap = await this.getModifierOptionMap(
       uniqueModifierOptionIds,
       restaurantId,
+      tx,
     );
 
     const itemsToCreate = items.map((item) => {
       const dish = dishMap.get(item.dishId);
       if (!dish) {
-        throw new BadRequestException(
-          'Some dishes are unavailable or not found',
-        );
+        throw new BadRequestException('errors.dishes_unavailable');
       }
 
       const allowedGroupIds = new Set(
         dish.modifiers.map((m) => m.modifierGroupId),
       );
+
       const modifiersPayload = (item.modifiers ?? []).map((modifier) => {
         const modifierOption = modifierOptionMap.get(modifier.modifierOptionId);
         if (!modifierOption) {
-          throw new BadRequestException(
-            `Modifier option ${modifier.modifierOptionId} not found`,
-          );
+          throw new BadRequestException('errors.modifier_not_found');
         }
         if (!allowedGroupIds.has(modifierOption.modifierGroupId)) {
-          throw new BadRequestException(
-            `Modifier option ${modifier.modifierOptionId} not allowed`,
-          );
+          throw new BadRequestException('errors.modifier_not_allowed');
         }
         return {
-          modifierOptionId: modifierOption.id,
+          modifierOptionId: modifier.modifierOptionId,
           quantity: modifier.quantity ?? 1,
           unitPrice: modifierOption.price,
         };
@@ -360,7 +385,7 @@ export class OrdersService {
   }
 
   async getOrders(restaurantId: number, userId: number, status?: OrderStatus) {
-    await this.ensureRestaurantOwner(restaurantId, userId);
+    await this.ensureRestaurantAccess(restaurantId, userId);
     const orders = await this.prisma.order.findMany({
       where: { restaurantId, status },
       orderBy: { createdAt: 'desc' },
@@ -368,35 +393,38 @@ export class OrdersService {
         table: { select: { id: true, number: true, type: true } },
         items: {
           include: {
-            dish: { select: { id: true, name: true } },
+            dish: true,
             modifiers: {
-              include: { modifierOption: { select: { id: true, name: true } } },
+              include: { modifierOption: true },
             },
           },
         },
       },
     });
-    return orders.map((order) => this.mapOrder(order));
+    return orders.map((order) => DataMappingUtil.mapOrder(order));
   }
 
   async getOrderById(restaurantId: number, orderId: string, userId: number) {
-    await this.ensureRestaurantOwner(restaurantId, userId);
+    await this.ensureRestaurantAccess(restaurantId, userId);
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, restaurantId },
       include: {
         table: { select: { id: true, number: true, type: true } },
         items: {
           include: {
-            dish: { select: { id: true, name: true } },
+            dish: true,
             modifiers: {
-              include: { modifierOption: { select: { id: true, name: true } } },
+              include: { modifierOption: true },
             },
           },
         },
       },
     });
-    if (!order) throw new NotFoundException('Order not found');
-    return this.mapOrder(order);
+
+    if (!order) {
+      throw new NotFoundException('errors.order_not_found');
+    }
+    return DataMappingUtil.mapOrder(order);
   }
 
   async updateOrder(
@@ -405,74 +433,105 @@ export class OrdersService {
     updateOrderDto: UpdateOrderDto,
     userId: number,
   ) {
-    await this.ensureRestaurantOwner(restaurantId, userId);
-    await this.ensureOrderBelongsToRestaurant(restaurantId, orderId);
+    await this.ensureRestaurantAccess(restaurantId, userId);
 
-    if (updateOrderDto.tableId) {
-      await this.ensureActiveTableBelongsToRestaurant(
-        restaurantId,
-        updateOrderDto.tableId,
-      );
-    }
+    const updatedOrder = await this.prisma.$transaction(async (tx) => {
+      await this.ensureOrderBelongsToRestaurant(restaurantId, orderId, tx);
 
-    const updatedOrder = await this.prisma.order.update({
-      where: { id: orderId },
-      data: updateOrderDto,
-      include: {
-        table: { select: { id: true, number: true, type: true } },
-        items: {
-          include: {
-            dish: { select: { id: true, name: true } },
-            modifiers: {
-              include: { modifierOption: { select: { id: true, name: true } } },
+      if (updateOrderDto.tableId) {
+        await this.ensureActiveTableBelongsToRestaurant(
+          restaurantId,
+          updateOrderDto.tableId,
+          tx,
+        );
+      }
+
+      return await tx.order.update({
+        where: { id: orderId },
+        data: updateOrderDto,
+        include: {
+          table: { select: { id: true, number: true, type: true } },
+          items: {
+            include: {
+              dish: true,
+              modifiers: {
+                include: { modifierOption: true },
+              },
             },
           },
         },
-      },
+      });
     });
 
-    await this.liveMonitorGateway.emitOrdersChanged(
-      restaurantId,
-      'updated',
-      updatedOrder.id,
-    );
+    if (updatedOrder.tableId) {
+      await this.liveMonitorGateway.emitOrdersChanged(
+        restaurantId,
+        'updated',
+        updatedOrder.id,
+        updatedOrder.tableId,
+      );
+    }
 
     return {
-      message: 'Order updated successfully',
-      order: this.mapOrder(updatedOrder),
+      message: 'success.order_updated',
+      order: DataMappingUtil.mapOrder(updatedOrder),
     };
   }
 
   async deleteOrder(restaurantId: number, orderId: string, userId: number) {
-    await this.ensureRestaurantOwner(restaurantId, userId);
-    await this.ensureOrderBelongsToRestaurant(restaurantId, orderId);
-    await this.prisma.order.delete({ where: { id: orderId } });
+    await this.ensureRestaurantAccess(restaurantId, userId);
 
-    await this.liveMonitorGateway.emitOrdersChanged(
-      restaurantId,
-      'deleted',
-      orderId,
-    );
-
-    return { message: 'Order deleted successfully' };
-  }
-
-  private async ensureRestaurantOwner(restaurantId: number, userId: number) {
-    const restaurant = await this.prisma.restaurant.findFirst({
-      where: { id: restaurantId, ownerId: userId },
-      select: { id: true },
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      select: { id: true, tableId: true },
     });
 
-    if (!restaurant) {
-      throw new NotFoundException('Restaurant not found');
+    if (!order) {
+      throw new NotFoundException('errors.order_not_found');
+    }
+
+    await this.prisma.order.delete({ where: { id: orderId } });
+
+    if (order.tableId) {
+      await this.liveMonitorGateway.emitOrdersChanged(
+        restaurantId,
+        'deleted',
+        orderId,
+        order.tableId,
+      );
+    }
+
+    return { message: 'success.order_deleted' };
+  }
+
+  private async ensureRestaurantAccess(restaurantId: number, userId: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new NotFoundException('errors.user_not_found');
+    }
+    if (user.role === 'OWNER') {
+      const restaurant = await this.prisma.restaurant.findFirst({
+        where: { id: restaurantId, ownerId: userId },
+        select: { id: true },
+      });
+      if (!restaurant) {
+        throw new NotFoundException('errors.restaurant_not_found');
+      }
+      return;
+    }
+    if (user.restaurantId !== restaurantId || !user.isActive) {
+      throw new BadRequestException('errors.access_denied');
     }
   }
 
   private async ensureActiveTableBelongsToRestaurant(
     restaurantId: number,
     tableId: string,
+    tx: TxClient,
   ) {
-    const table = await this.prisma.diningTable.findFirst({
+    const table = await tx.diningTable.findFirst({
       where: {
         id: tableId,
         restaurantId,
@@ -480,31 +539,29 @@ export class OrdersService {
       },
       select: { id: true },
     });
-
     if (!table) {
-      throw new BadRequestException(
-        'Table is inactive or does not belong to restaurant',
-      );
+      throw new BadRequestException('errors.table_inactive_or_invalid');
     }
   }
 
   private async ensureOrderBelongsToRestaurant(
     restaurantId: number,
     orderId: string,
+    tx: TxClient,
   ) {
-    const order = await this.prisma.order.findFirst({
+    const order = await tx.order.findFirst({
       where: { id: orderId, restaurantId },
       select: { id: true },
     });
-
     if (!order) {
-      throw new NotFoundException('Order not found');
+      throw new NotFoundException('errors.order_not_found');
     }
   }
 
   private async getModifierOptionMap(
     modifierOptionIds: string[],
     restaurantId: number,
+    tx: TxClient,
   ) {
     if (modifierOptionIds.length === 0) {
       return new Map<
@@ -512,8 +569,7 @@ export class OrdersService {
         { id: string; modifierGroupId: string; price: number }
       >();
     }
-
-    const options = await this.prisma.modifierOption.findMany({
+    const options = await tx.modifierOption.findMany({
       where: {
         id: { in: modifierOptionIds },
         group: { restaurantId },
@@ -524,35 +580,9 @@ export class OrdersService {
         price: true,
       },
     });
-
     if (options.length !== modifierOptionIds.length) {
-      throw new BadRequestException(
-        'Some modifier options are unavailable or not found',
-      );
+      throw new BadRequestException('errors.modifiers_unavailable');
     }
-
     return new Map(options.map((option) => [option.id, option]));
-  }
-
-  private mapOrder(order: any) {
-    return {
-      ...order,
-      items: order.items.map((item: any) => ({
-        id: item.id,
-        dishId: item.dishId,
-        dishName: item.dish.name,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        lineTotal: item.quantity * item.unitPrice,
-        modifiers: item.modifiers.map((modifier: any) => ({
-          id: modifier.id,
-          modifierOptionId: modifier.modifierOptionId,
-          modifierName: modifier.modifierOption.name,
-          quantity: modifier.quantity,
-          unitPrice: modifier.unitPrice,
-          lineTotal: modifier.quantity * modifier.unitPrice,
-        })),
-      })),
-    };
   }
 }
