@@ -11,5 +11,7 @@ const server = http.createServer((_req, res) => {
 });
 
 server.listen(3002, () => {
-  process.stdout.write('Email preview server running at http://localhost:3002\n');
+  process.stdout.write(
+    'Email preview server running at http://localhost:3002\n',
+  );
 });
