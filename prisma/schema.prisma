@@ -27,6 +27,7 @@ model User {
   loginCodeHash      String?
   loginCodeExpiresAt DateTime?
 
+  @@index([email])
   @@unique([email, restaurantId])
 }
 
@@ -39,6 +40,8 @@ model Session {
   userAgent String?
   ipAddress String?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
 }
 
 model Restaurant {
@@ -64,6 +67,7 @@ model Restaurant {
   ownerId             Int
   purchasedModules    String[]             @default(["menu-engine", "qr-tables", "staff"])
   activeModules       String[]             @default(["menu-engine", "qr-tables", "staff"])
+  visualSettings      Json?                @default("{}")
   posIntegration      PosIntegration?
   categories          Category[]
   DiningTable         DiningTable[]
@@ -260,6 +264,7 @@ model DiningTable {
   status       TableStatus @default(INACTIVE)
   isWaiterCallActive Boolean   @default(false)
   waiterCallRequestedAt DateTime?
+  waiterCallType String?   @default("WAITER")
   restaurantId Int
   restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   orders       Order[]
@@ -271,6 +276,7 @@ model DiningTable {
 
 model Order {
   id           String       @id @default(uuid())
+  orderNumber  Int          @default(autoincrement())
   restaurantId Int
   tableId      String?
   type         OrderType    @default(DINE_IN)

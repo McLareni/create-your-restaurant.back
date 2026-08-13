@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import {
   AcceptLanguageResolver,
   CookieResolver,
@@ -21,20 +22,28 @@ import { InventoryModule } from 'src/inventory/inventory.module';
 import { PosModule } from 'src/pos/pos.module';
 import { AnalyticsModule } from 'src/analytics/analytics.module';
 import { LiveMonitorModule } from 'src/live-monitor/live-monitor.module';
+import { LiveCallsModule } from 'src/live-calls/live-calls.module';
 import { OrdersModule } from 'src/orders/orders.module';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { StripeModule } from 'src/stripe/stripe.module';
 import { PrismaExceptionFilter } from 'src/common/filters/prisma-exception.filter';
+import { VisualModule } from './visual/visual.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 200,
+      },
+    ]),
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
     I18nModule.forRoot({
       fallbackLanguage: 'uk',
       loaderOptions: {
-        path: path.join(__dirname, '../i18n/'),
+        path: path.join(__dirname, 'i18n/'),
         watch: true,
       },
       resolvers: [new CookieResolver(['gustio_lang']), AcceptLanguageResolver],
@@ -51,12 +60,18 @@ import { PrismaExceptionFilter } from 'src/common/filters/prisma-exception.filte
     PosModule,
     AnalyticsModule,
     LiveMonitorModule,
+    LiveCallsModule,
     OrdersModule,
     StripeModule,
+    VisualModule,
   ],
   controllers: [],
   providers: [
     PrismaService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     {
       provide: APP_FILTER,
       useClass: PrismaExceptionFilter,

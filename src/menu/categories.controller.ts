@@ -23,10 +23,11 @@ import { UpdateCategoryDto } from 'src/menu/dto/update-category.dto';
 import { ReorderCategoriesDto } from 'src/menu/dto/reorder-categories.dto';
 import { ActiveRestaurantId } from 'src/common/decorators/active-restaurant-id.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions.constants';
+import { SessionAuthGuard } from 'src/guards/session-auth.guard';
 
 @ApiTags('Categories')
 @Controller('menu/owner/categories')
-@UseGuards(PermissionsGuard)
+@UseGuards(SessionAuthGuard, PermissionsGuard)
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 

@@ -1,494 +1,180 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
-import { OrderStatus, OrderType } from '@prisma/client';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { describe, beforeAll, afterAll, it, expect } from '@jest/globals';
+import type { TestingModule } from '@nestjs/testing';
+import type { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { ValidationPipe } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
 import request from 'supertest';
-import { App } from 'supertest/types';
-import { OrdersController } from './../src/orders/orders.controller';
-import { OrdersService } from './../src/orders/orders.service';
+import { AppModule } from 'src/app.module';
+import { PrismaService } from 'src/prisma/prisma.service';
 
-describe('OrdersController (e2e)', () => {
-  let app: INestApplication<App>;
+describe('OrdersModule (e2e)', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  let restaurantId: number;
+  let ownerToken: string;
+  let tableId: string;
+  let dishId: string;
+  let orderId: string;
 
-  const ordersServiceMock = {
-    createPublicOrder: jest.fn(),
-    appendItemsToPublicOrder: jest.fn(),
-    callWaiterFromPublicMenu: jest.fn(),
-    findPublicOrderByCode: jest.fn(),
-    getPublicOrderById: jest.fn(),
-    createOrder: jest.fn(),
-    getOrders: jest.fn(),
-    getOrderById: jest.fn(),
-    updateOrder: jest.fn(),
-    deleteOrder: jest.fn(),
-  };
-
-  beforeEach(async () => {
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      controllers: [OrdersController],
-      providers: [
-        {
-          provide: OrdersService,
-          useValue: ordersServiceMock,
-        },
-      ],
+      imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.use((req, _res, next) => {
-      (req as { user?: { id: number } }).user = { id: 1 };
-      next();
-    });
+
+    app.use(cookieParser());
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
         transform: true,
       }),
     );
+
     await app.init();
-  });
 
-  it('/restaurants/:restaurantId/orders (POST) should create order with modifiers', async () => {
-    const payload = {
-      type: OrderType.DINE_IN,
-      tableId: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-      items: [
-        {
-          dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
-          quantity: 2,
-          modifiers: [
-            {
-              modifierOptionId: '8eebf4f4-40aa-4dd0-b7d4-1a58ec4a9e89',
-              quantity: 3,
-            },
-          ],
-        },
-      ],
-    };
+    prisma = app.get(PrismaService);
 
-    ordersServiceMock.createOrder.mockResolvedValue({
-      message: 'Order created successfully',
-      order: {
-        id: 'order-1',
-        restaurantId: 1,
-        tableId: payload.tableId,
-        type: OrderType.DINE_IN,
-        status: OrderStatus.PENDING,
-        totalAmount: 980,
-        createdAt: '2026-05-20T12:00:00.000Z',
-        updatedAt: '2026-05-20T12:00:00.000Z',
-        table: {
-          id: payload.tableId,
-          number: 12,
-          type: 'TERRACE',
-        },
-        items: [
-          {
-            id: 'order-item-1',
-            dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
-            dishName: 'Margherita',
-            quantity: 2,
-            unitPrice: 490,
-            lineTotal: 980,
-            modifiers: [
-              {
-                id: 'item-mod-1',
-                modifierOptionId: '8eebf4f4-40aa-4dd0-b7d4-1a58ec4a9e89',
-                modifierName: 'Extra cheese',
-                quantity: 3,
-                unitPrice: 30,
-                lineTotal: 90,
-              },
-            ],
-          },
-        ],
+    const user = await prisma.user.create({
+      data: {
+        email: 'test-owner-orders@example.com',
+        role: 'OWNER',
+        isActive: true,
       },
     });
 
-    await request(app.getHttpServer())
-      .post('/restaurants/1/orders')
-      .send(payload)
-      .expect(201)
-      .expect((response) => {
-        expect(response.body.message).toBe('Order created successfully');
-        expect(response.body.order.id).toBe('order-1');
-        expect(response.body.order.items[0].modifiers[0].quantity).toBe(3);
-      });
-
-    expect(ordersServiceMock.createOrder).toHaveBeenCalledWith(1, payload, 1);
-  });
-
-  it('/restaurants/:restaurantId/orders/public/:orderId/items (POST) should append items to existing public order', async () => {
-    const payload = {
-      items: [
-        {
-          dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
-          quantity: 1,
-        },
-      ],
-    };
-
-    ordersServiceMock.appendItemsToPublicOrder.mockResolvedValue({
-      message: 'Items appended successfully',
-      order: {
-        id: 'order-1',
-        restaurantId: 1,
-        status: OrderStatus.PENDING,
-        totalAmount: 1240,
-        items: [
-          {
-            id: 'order-item-2',
-            dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
-            dishName: 'Margherita',
-            quantity: 1,
-            unitPrice: 260,
-            lineTotal: 260,
-            modifiers: [],
-          },
-        ],
+    const restaurant = await prisma.restaurant.create({
+      data: {
+        title: 'Test Orders Restaurant',
+        slug: 'test-orders-rest',
+        type: 'CAFE',
+        currency: 'USD',
+        language: 'UA',
+        ownerId: user.id,
       },
     });
 
-    await request(app.getHttpServer())
-      .post('/restaurants/1/orders/public/order-1/items')
-      .send(payload)
-      .expect(201)
-      .expect((response) => {
-        expect(response.body.message).toBe('Items appended successfully');
-        expect(response.body.order.id).toBe('order-1');
-        expect(response.body.order.totalAmount).toBe(1240);
-      });
+    restaurantId = restaurant.id;
 
-    expect(ordersServiceMock.appendItemsToPublicOrder).toHaveBeenCalledWith(
-      1,
-      'order-1',
-      payload,
-    );
-  });
-
-  it('/restaurants/:restaurantId/orders/public/:orderId/items (POST) should validate payload', async () => {
-    await request(app.getHttpServer())
-      .post('/restaurants/1/orders/public/order-1/items')
-      .send({
-        items: [
-          {
-            dishId: 'not-uuid',
-            quantity: 0,
-          },
-        ],
-      })
-      .expect(400);
-  });
-
-  it('/restaurants/:restaurantId/orders/public/tables/:tableId/call-waiter (POST) should send waiter call', async () => {
-    ordersServiceMock.callWaiterFromPublicMenu.mockResolvedValue({
-      message: 'Waiter call sent successfully',
-      tableId: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-    });
-
-    await request(app.getHttpServer())
-      .post(
-        '/restaurants/1/orders/public/tables/1a2d7d9c-5f73-4bf0-b89a-f12474a584d3/call-waiter',
-      )
-      .expect(201)
-      .expect({
-        message: 'Waiter call sent successfully',
-        tableId: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-      });
-
-    expect(ordersServiceMock.callWaiterFromPublicMenu).toHaveBeenCalledWith(
-      1,
-      '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-    );
-  });
-
-  it('/restaurants/:restaurantId/orders/public/tables/:tableId/by-code/:code (GET) should resolve order id by short code', async () => {
-    ordersServiceMock.findPublicOrderByCode.mockResolvedValue({
-      orderId: '8bca983a-8101-41da-b7dd-f3caeb343cf0',
-    });
-
-    await request(app.getHttpServer())
-      .get(
-        '/restaurants/1/orders/public/tables/1a2d7d9c-5f73-4bf0-b89a-f12474a584d3/by-code/8bca983a',
-      )
-      .expect(200)
-      .expect({
-        orderId: '8bca983a-8101-41da-b7dd-f3caeb343cf0',
-      });
-
-    expect(ordersServiceMock.findPublicOrderByCode).toHaveBeenCalledWith(
-      1,
-      '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-      '8bca983a',
-    );
-  });
-
-  it('/restaurants/:restaurantId/orders/public/tables/:tableId/:orderId (GET) should return public order details', async () => {
-    ordersServiceMock.getPublicOrderById.mockResolvedValue({
-      order: {
-        id: 'order-1',
-        restaurantId: 1,
-        tableId: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-        status: OrderStatus.PENDING,
-        totalAmount: 980,
-        items: [
-          {
-            id: 'order-item-1',
-            dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
-            dishName: 'Margherita',
-            quantity: 2,
-            unitPrice: 490,
-            lineTotal: 980,
-            modifiers: [],
-          },
-        ],
+    const session = await prisma.session.create({
+      data: {
+        userId: user.id,
+        token: 'test-session-token-orders',
+        expiresAt: new Date(Date.now() + 1000000),
       },
     });
 
-    await request(app.getHttpServer())
-      .get(
-        '/restaurants/1/orders/public/tables/1a2d7d9c-5f73-4bf0-b89a-f12474a584d3/order-1',
-      )
-      .expect(200)
-      .expect((response) => {
-        expect(response.body.order.id).toBe('order-1');
-        expect(response.body.order.items).toHaveLength(1);
-      });
+    ownerToken = session.token;
 
-    expect(ordersServiceMock.getPublicOrderById).toHaveBeenCalledWith(
-      1,
-      '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-      'order-1',
-    );
-  });
-
-  it('/restaurants/:restaurantId/orders (POST) should validate payload', async () => {
-    await request(app.getHttpServer())
-      .post('/restaurants/1/orders')
-      .send({
-        type: 'DINE_IN',
-        items: [
-          {
-            dishId: 'not-uuid',
-            quantity: 0,
-            modifiers: [
-              {
-                modifierOptionId: 'also-not-uuid',
-                quantity: 0,
-              },
-            ],
-          },
-        ],
-      })
-      .expect(400);
-  });
-
-  it('/restaurants/:restaurantId/orders (GET) should return orders list', async () => {
-    ordersServiceMock.getOrders.mockResolvedValue([
-      {
-        id: 'order-1',
-        restaurantId: 1,
-        tableId: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-        type: OrderType.DINE_IN,
-        status: OrderStatus.PENDING,
-        totalAmount: 980,
-        items: [
-          {
-            id: 'order-item-1',
-            dishId: 'df5b80f5-c448-4c5b-a651-6ccdc59827d2',
-            dishName: 'Margherita',
-            quantity: 2,
-            unitPrice: 490,
-            lineTotal: 980,
-            modifiers: [
-              {
-                id: 'item-mod-1',
-                modifierOptionId: '8eebf4f4-40aa-4dd0-b7d4-1a58ec4a9e89',
-                modifierName: 'Extra cheese',
-                quantity: 3,
-                unitPrice: 30,
-                lineTotal: 90,
-              },
-            ],
-          },
-        ],
+    const table = await prisma.diningTable.create({
+      data: {
+        restaurantId,
+        number: 10,
+        type: 'HALL',
+        status: 'ACTIVE',
       },
-    ]);
-
-    await request(app.getHttpServer())
-      .get('/restaurants/1/orders?status=PENDING')
-      .expect(200)
-      .expect((response) => {
-        expect(response.body).toHaveLength(1);
-        expect(response.body[0].status).toBe('PENDING');
-      });
-
-    expect(ordersServiceMock.getOrders).toHaveBeenCalledWith(
-      1,
-      1,
-      OrderStatus.PENDING,
-    );
-  });
-
-  it('/restaurants/:restaurantId/orders/:orderId (GET) should return order by id', async () => {
-    ordersServiceMock.getOrderById.mockResolvedValue({
-      id: 'order-1',
-      restaurantId: 1,
-      status: OrderStatus.PENDING,
-      items: [],
     });
+    tableId = table.id;
 
-    await request(app.getHttpServer())
-      .get('/restaurants/1/orders/order-1')
-      .expect(200)
-      .expect({
-        id: 'order-1',
-        restaurantId: 1,
-        status: OrderStatus.PENDING,
-        items: [],
-      });
-
-    expect(ordersServiceMock.getOrderById).toHaveBeenCalledWith(
-      1,
-      'order-1',
-      1,
-    );
-  });
-
-  it('/restaurants/:restaurantId/orders/:orderId (PATCH) should update order', async () => {
-    const payload = {
-      status: OrderStatus.IN_PROGRESS,
-    };
-
-    ordersServiceMock.updateOrder.mockResolvedValue({
-      message: 'Order updated successfully',
-      order: {
-        id: 'order-1',
-        status: OrderStatus.IN_PROGRESS,
+    const category = await prisma.category.create({
+      data: {
+        restaurantId,
+        name: 'Main Course',
+        sortOrder: 1,
       },
     });
 
-    await request(app.getHttpServer())
-      .patch('/restaurants/1/orders/order-1')
-      .send(payload)
-      .expect(200)
-      .expect({
-        message: 'Order updated successfully',
-        order: {
-          id: 'order-1',
-          status: OrderStatus.IN_PROGRESS,
-        },
-      });
-
-    expect(ordersServiceMock.updateOrder).toHaveBeenCalledWith(
-      1,
-      'order-1',
-      payload,
-      1,
-    );
+    const dish = await prisma.dish.create({
+      data: {
+        categoryId: category.id,
+        name: 'Steak',
+        price: 300,
+        isAvailable: true,
+      },
+    });
+    dishId = dish.id;
   });
 
-  it('/restaurants/:restaurantId/orders/:orderId (DELETE) should delete order', async () => {
-    ordersServiceMock.deleteOrder.mockResolvedValue({
-      message: 'Order deleted successfully',
+  afterAll(async () => {
+    if (prisma) {
+      await prisma.restaurant.deleteMany({
+        where: { id: restaurantId },
+      });
+      await prisma.user.deleteMany({
+        where: { email: 'test-owner-orders@example.com' },
+      });
+      await prisma.$disconnect();
+    }
+    if (app) {
+      await app.close();
+    }
+  });
+
+  describe('Public Ordering', () => {
+    it('POST /restaurants/:restaurantId/orders/public - should create order', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/restaurants/${restaurantId}/orders/public`)
+        .send({
+          tableId,
+          type: 'DINE_IN',
+          items: [{ dishId, quantity: 2 }],
+        })
+        .expect(201);
+
+      expect(response.body.message).toBe('success.order_created');
+      expect(response.body.order).toHaveProperty('id');
+      expect(response.body.order.totalAmount).toBe(600);
+
+      orderId = response.body.order.id;
     });
 
-    await request(app.getHttpServer())
-      .delete('/restaurants/1/orders/order-1')
-      .expect(200)
-      .expect({ message: 'Order deleted successfully' });
+    it('POST /restaurants/:restaurantId/orders/public/:orderId/items - should append items', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/restaurants/${restaurantId}/orders/public/${orderId}/items`)
+        .send({
+          items: [{ dishId, quantity: 1 }],
+        })
+        .expect(201);
 
-    expect(ordersServiceMock.deleteOrder).toHaveBeenCalledWith(1, 'order-1', 1);
+      expect(response.body.message).toBe('success.items_appended');
+      expect(response.body.order.totalAmount).toBe(900);
+    });
   });
 
-  it('Swagger should fully describe orders endpoints', () => {
-    const swaggerConfig = new DocumentBuilder()
-      .setTitle('Create Your Restaurant API')
-      .setDescription('API documentation for Create Your Restaurant service')
-      .setVersion('1.0')
-      .addCookieAuth(
-        'gustio_session',
-        {
-          type: 'apiKey',
-          in: 'cookie',
-          name: 'gustio_session',
-          description: 'Session token from cookie',
-        },
-        'gustio_session',
-      )
-      .build();
+  describe('Owner Order Management', () => {
+    it('GET /restaurants/:restaurantId/orders - should list orders', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/restaurants/${restaurantId}/orders`)
+        .set('Cookie', [`gustio_session=${ownerToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .expect(200);
 
-    const document = SwaggerModule.createDocument(app, swaggerConfig);
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body.length).toBe(1);
+      expect(response.body[0].id).toBe(orderId);
+    });
 
-    const ordersCollectionPath =
-      document.paths['/restaurants/{restaurantId}/orders'];
-    expect(ordersCollectionPath).toBeDefined();
+    it('PATCH /restaurants/:restaurantId/orders/:orderId - should update order status', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/restaurants/${restaurantId}/orders/${orderId}`)
+        .set('Cookie', [`gustio_session=${ownerToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .send({ status: 'IN_PROGRESS' })
+        .expect(200);
 
-    expect(ordersCollectionPath.post).toBeDefined();
-    expect(ordersCollectionPath.post!.summary).toBe('Create order');
-    expect(ordersCollectionPath.post!.requestBody).toBeDefined();
-    expect(Object.keys(ordersCollectionPath.post!.responses)).toEqual(
-      expect.arrayContaining(['201', '400', '401', '404']),
-    );
-    expect(ordersCollectionPath.post!.security).toEqual([
-      { gustio_session: [] },
-    ]);
+      expect(response.body.message).toBe('success.order_updated');
+      expect(response.body.order.status).toBe('IN_PROGRESS');
+    });
 
-    expect(ordersCollectionPath.get).toBeDefined();
-    expect(ordersCollectionPath.get!.summary).toBe('Get restaurant orders');
-    expect(ordersCollectionPath.get!.parameters).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ in: 'path', name: 'restaurantId' }),
-        expect.objectContaining({ in: 'query', name: 'status' }),
-      ]),
-    );
-    expect(Object.keys(ordersCollectionPath.get!.responses)).toEqual(
-      expect.arrayContaining(['200', '401', '404']),
-    );
-    expect(ordersCollectionPath.get!.security).toEqual([
-      { gustio_session: [] },
-    ]);
+    it('DELETE /restaurants/:restaurantId/orders/:orderId - should delete order', async () => {
+      const response = await request(app.getHttpServer())
+        .delete(`/restaurants/${restaurantId}/orders/${orderId}`)
+        .set('Cookie', [`gustio_session=${ownerToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .expect(200);
 
-    const orderItemPath =
-      document.paths['/restaurants/{restaurantId}/orders/{orderId}'];
-    expect(orderItemPath).toBeDefined();
-
-    expect(orderItemPath.get).toBeDefined();
-    expect(orderItemPath.get!.summary).toBe('Get order by ID');
-    expect(Object.keys(orderItemPath.get!.responses)).toEqual(
-      expect.arrayContaining(['200', '401', '404']),
-    );
-
-    expect(orderItemPath.patch).toBeDefined();
-    expect(orderItemPath.patch!.summary).toBe('Update order');
-    expect(orderItemPath.patch!.requestBody).toBeDefined();
-    expect(Object.keys(orderItemPath.patch!.responses)).toEqual(
-      expect.arrayContaining(['200', '400', '401', '404']),
-    );
-
-    expect(orderItemPath.delete).toBeDefined();
-    expect(orderItemPath.delete!.summary).toBe('Delete order');
-    expect(Object.keys(orderItemPath.delete!.responses)).toEqual(
-      expect.arrayContaining(['200', '401', '404']),
-    );
-
-    const publicOrderItemsPath =
-      document.paths[
-        '/restaurants/{restaurantId}/orders/public/{orderId}/items'
-      ];
-    expect(publicOrderItemsPath).toBeDefined();
-    expect(publicOrderItemsPath.post).toBeDefined();
-    expect(publicOrderItemsPath.post!.summary).toBe(
-      'Append items to existing public order',
-    );
-    expect(publicOrderItemsPath.post!.requestBody).toBeDefined();
-    expect(Object.keys(publicOrderItemsPath.post!.responses)).toEqual(
-      expect.arrayContaining(['201', '400']),
-    );
-  });
-
-  afterEach(async () => {
-    jest.clearAllMocks();
-    await app.close();
+      expect(response.body.message).toBe('success.order_deleted');
+    });
   });
 });

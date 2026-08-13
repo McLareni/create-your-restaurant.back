@@ -1,7 +1,6 @@
-import { Module, RequestMethod } from '@nestjs/common';
-import type { MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
+import type {} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { SessionAuthMiddleware } from 'src/restaurants/middleware/session-auth.middleware';
 import { UsersModule } from 'src/users/users.module';
 import { CategoriesController } from 'src/menu/categories.controller';
 import { CategoriesService } from 'src/menu/categories.service';
@@ -16,10 +15,10 @@ import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 @Module({
   imports: [UsersModule, CloudinaryModule],
   controllers: [
-    MenuController,
     CategoriesController,
     DishesController,
     MenuOwnerController,
+    MenuController,
   ],
   providers: [
     MenuService,
@@ -27,24 +26,6 @@ import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
     DishesService,
     MenuOwnerService,
     PrismaService,
-    SessionAuthMiddleware,
   ],
 })
-export class MenuModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(SessionAuthMiddleware).forRoutes(
-      {
-        path: 'restaurants/:restaurantId/menu',
-        method: RequestMethod.POST,
-      },
-      {
-        path: 'menu/owner',
-        method: RequestMethod.ALL,
-      },
-      {
-        path: 'menu/owner/*',
-        method: RequestMethod.ALL,
-      },
-    );
-  }
-}
+export class MenuModule {}

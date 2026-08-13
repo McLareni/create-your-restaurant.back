@@ -22,6 +22,13 @@ const menuIncludeArgs = {
           ingredients: true,
           allergens: true,
           tags: true,
+          modifiers: {
+            include: {
+              modifierGroup: {
+                include: { options: true },
+              },
+            },
+          },
         },
       },
     },
@@ -62,6 +69,7 @@ export class MenuService {
     return {
       restaurantId: restaurant.id,
       restaurantName: restaurant.title,
+      visualSettings: restaurant.visualSettings,
       categories: restaurant.categories.map((category) => ({
         ...category,
         dishes: category.dishes.map((dish) => {

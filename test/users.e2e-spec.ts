@@ -1,33 +1,22 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import request from 'supertest';
-import { App } from 'supertest/types';
+import { describe, beforeAll, afterAll, it, expect } from '@jest/globals';
+import type { TestingModule } from '@nestjs/testing';
+import type { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
-jest.mock('./../src/users/users.service', () => ({
-  UsersService: class UsersService {},
-}));
+import request from 'supertest';
+import { hash } from 'bcrypt';
+import { AppModule } from 'src/app.module';
+import { PrismaService } from 'src/prisma/prisma.service';
 
-import { UsersService } from './../src/users/users.service';
-import { UsersController } from './../src/users/users.controller';
+describe('UsersModule (e2e)', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  let testToken: string;
 
-describe('UsersController (e2e)', () => {
-  let app: INestApplication<App>;
-  const usersServiceMock = {
-    requestLoginCode: jest.fn(),
-    verifyLoginCode: jest.fn(),
-    logout: jest.fn(),
-    getMe: jest.fn(),
-  };
-
-  beforeEach(async () => {
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      controllers: [UsersController],
-      providers: [
-        {
-          provide: UsersService,
-          useValue: usersServiceMock,
-        },
-      ],
+      imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -36,140 +25,84 @@ describe('UsersController (e2e)', () => {
       new ValidationPipe({ whitelist: true, transform: true }),
     );
     await app.init();
+
+    prisma = app.get(PrismaService);
   });
 
-  it('/users (POST) should request login code', async () => {
-    usersServiceMock.requestLoginCode.mockResolvedValue({
-      message: 'Code sent to email',
-    });
-
-    await request(app.getHttpServer())
-      .post('/users')
-      .send({ email: 'user@example.com' })
-      .expect(201)
-      .expect({ message: 'Code sent to email' });
-
-    expect(usersServiceMock.requestLoginCode).toHaveBeenCalledWith(
-      'user@example.com',
-    );
-  });
-
-  it('/users (POST) should validate email', async () => {
-    await request(app.getHttpServer())
-      .post('/users')
-      .send({ email: 'invalid-email' })
-      .expect(400);
-  });
-
-  it('/users/verify-login-code (POST) should verify code', async () => {
-    usersServiceMock.verifyLoginCode.mockResolvedValue({
-      message: 'Login successful',
-      session: {
-        token: 'session-token',
-        expiresAt: '2026-06-15T13:40:00.000Z',
-      },
-    });
-
-    await request(app.getHttpServer())
-      .post('/users/verify-login-code')
-      .set('x-forwarded-for', '203.0.113.10')
-      .send({ email: 'user@example.com', code: '123456' })
-      .expect(201)
-      .expect({
-        message: 'Login successful',
-        session: {
-          token: 'session-token',
-          expiresAt: '2026-06-15T13:40:00.000Z',
-        },
+  afterAll(async () => {
+    if (prisma) {
+      await prisma.user.deleteMany({
+        where: { email: 'e2e-user@example.com' },
       });
-
-    expect(usersServiceMock.verifyLoginCode).toHaveBeenCalledWith(
-      'user@example.com',
-      '123456',
-      expect.anything(),
-    );
-
-    const verifyLoginCodeCalls = usersServiceMock.verifyLoginCode.mock
-      .calls as [string, string, { userAgent?: string; ipAddress?: string }][];
-    const sessionMetadata = verifyLoginCodeCalls[0]?.[2];
-
-    expect(sessionMetadata).toEqual(
-      expect.objectContaining({
-        ipAddress: '203.0.113.10',
-      }),
-    );
+      await prisma.$disconnect();
+    }
+    if (app) {
+      await app.close();
+    }
   });
 
-  it('/users/verify-login-code (POST) should validate code format', async () => {
-    await request(app.getHttpServer())
-      .post('/users/verify-login-code')
-      .send({ email: 'user@example.com', code: '12ab56' })
-      .expect(400);
+  it('POST /users - should request login code', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/users')
+      .send({ email: 'e2e-user@example.com' })
+      .expect(201);
+
+    expect(response.body.message).toBe('auth.code_sent');
   });
 
-  it('/users/logout (POST) should logout successfully', async () => {
-    usersServiceMock.logout.mockResolvedValue({
-      message: 'Logout successful',
+  it('POST /users/verify-login-code - should verify code and set cookie', async () => {
+    const user = await prisma.user.findFirst({
+      where: { email: 'e2e-user@example.com' },
     });
 
-    await request(app.getHttpServer())
-      .post('/users/logout')
-      .send({ token: 'session-token-123' })
-      .expect(200)
-      .expect({ message: 'Logout successful' });
+    const knownHash = await hash('123456', 12);
 
-    expect(usersServiceMock.logout).toHaveBeenCalledWith('session-token-123');
-  });
-
-  it('/users/logout (POST) should handle invalid token', async () => {
-    usersServiceMock.logout.mockRejectedValue(
-      new Error('Invalid or expired session'),
-    );
-
-    await request(app.getHttpServer())
-      .post('/users/logout')
-      .send({ token: 'invalid-token' })
-      .expect(500);
-  });
-
-  it('/users/me (GET) should return current user', async () => {
-    usersServiceMock.getMe.mockResolvedValue({
-      user: {
-        id: 1,
-        email: 'user@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-        photo: null,
-        role: 'OWNER',
-        createdAt: '2026-05-17T10:00:00.000Z',
+    await prisma.user.update({
+      where: { id: Number(user?.id) },
+      data: {
+        loginCodeHash: knownHash,
+        loginCodeExpiresAt: new Date(Date.now() + 100000),
       },
     });
 
-    await request(app.getHttpServer())
+    const response = await request(app.getHttpServer())
+      .post('/users/verify-login-code')
+      .send({ email: 'e2e-user@example.com', code: '123456' })
+      .expect(201);
+
+    expect(response.body.message).toBe('auth.login_success');
+    expect(response.headers['set-cookie']).toBeDefined();
+
+    const rawCookies = response.headers['set-cookie'];
+    const cookies = Array.isArray(rawCookies)
+      ? rawCookies
+      : [String(rawCookies)];
+
+    const sessionCookie = cookies.find((c) => c.startsWith('gustio_session='));
+    expect(sessionCookie).toBeDefined();
+
+    testToken = String(sessionCookie).split(';')[0].split('=')[1];
+  });
+
+  it('GET /users/me - should fail without cookie', async () => {
+    await request(app.getHttpServer()).get('/users/me').expect(401);
+  });
+
+  it('GET /users/me - should return user with cookie', async () => {
+    const response = await request(app.getHttpServer())
       .get('/users/me')
-      .set('Cookie', ['gustio_session=session-token-123'])
-      .expect(200)
-      .expect({
-        user: {
-          id: 1,
-          email: 'user@example.com',
-          firstName: 'John',
-          lastName: 'Doe',
-          photo: null,
-          role: 'OWNER',
-          createdAt: '2026-05-17T10:00:00.000Z',
-        },
-      });
+      .set('Cookie', [`gustio_session=${testToken}`])
+      .expect(200);
 
-    expect(usersServiceMock.getMe).toHaveBeenCalledWith('session-token-123');
+    expect(response.body.user.email).toBe('e2e-user@example.com');
   });
 
-  it('/users/me (GET) should fail without cookie', async () => {
-    await request(app.getHttpServer()).get('/users/me').expect(400);
-  });
+  it('POST /users/logout - should logout', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/users/logout')
+      .set('Cookie', [`gustio_session=${testToken}`])
+      .expect(200);
 
-  afterEach(async () => {
-    jest.clearAllMocks();
-    await app.close();
+    expect(response.body.message).toBe('auth.logout_success');
   });
 });

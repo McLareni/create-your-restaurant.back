@@ -76,6 +76,14 @@ export const PERMISSION_REGISTRY: PermissionModuleDefinition[] = [
       { id: 'orders:manage', label: 'Редагування та скасування замовлень' },
     ],
   },
+  {
+    moduleKey: 'visual',
+    moduleName: 'Візуальний Стиль',
+    actions: [
+      { id: 'visual:read', label: 'Перегляд налаштувань' },
+      { id: 'visual:manage', label: 'Налаштування стилю' },
+    ],
+  },
 ];
 
 export const PERMISSIONS = {
@@ -99,6 +107,8 @@ export const PERMISSIONS = {
   ANALYTICS_READ: 'analytics:read',
   ORDERS_READ: 'orders:read',
   ORDERS_MANAGE: 'orders:manage',
+  VISUAL_READ: 'visual:read',
+  VISUAL_MANAGE: 'visual:manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

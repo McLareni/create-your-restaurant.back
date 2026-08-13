@@ -6,7 +6,6 @@ import {
   Param,
   Patch,
   Post,
-  Req,
   UploadedFile,
   UseInterceptors,
   ParseIntPipe,
@@ -15,32 +14,23 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { IsArray, IsString } from 'class-validator';
+
 import { CreateStaffDto } from 'src/staff/dto/create-staff.dto';
 import { UpdateStaffDto } from 'src/staff/dto/update-staff.dto';
 import { CreateStaffRoleDto } from 'src/staff/dto/create-staff-role.dto';
+import { UpdateStaffRolePermissionsDto } from 'src/staff/dto/update-staff-role-permissions.dto';
 import { StaffService } from 'src/staff/staff.service';
 import { PermissionsGuard } from 'src/guards/permissions.guard';
+import { SessionAuthGuard } from 'src/guards/session-auth.guard';
 import { RequirePermission } from 'src/guards/permission.decorator';
 import { FileSignatureValidator } from 'src/common/validators/file-signature.validator';
-import type { AuthenticatedRequest } from 'src/restaurants/middleware/session-auth.middleware';
+import { CurrentUser } from 'src/users/decorators/current-user.decorator';
+import type { User } from '@prisma/client';
 import { PERMISSIONS } from 'src/common/constants/permissions.constants';
-
-type UploadedStaffImage = {
-  buffer: Buffer;
-  mimetype: string;
-  originalname: string;
-  size: number;
-};
-
-export class UpdateStaffRolePermissionsDto {
-  @IsArray({ message: 'errors.validation_array' })
-  @IsString({ each: true, message: 'errors.validation_string' })
-  permissions!: string[];
-}
+import type { UploadedStaffImage } from 'src/cloudinary/cloudinary.service';
 
 @Controller('restaurants/:restaurantId')
-@UseGuards(PermissionsGuard)
+@UseGuards(SessionAuthGuard, PermissionsGuard)
 export class StaffController {
   constructor(private readonly staffService: StaffService) {}
 
@@ -48,9 +38,9 @@ export class StaffController {
   @RequirePermission(PERMISSIONS.STAFF_READ)
   getAvailablePermissions(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Req() req: AuthenticatedRequest,
+    @CurrentUser() user: User,
   ) {
-    return this.staffService.getAvailablePermissions(restaurantId, req.user.id);
+    return this.staffService.getAvailablePermissions(restaurantId, user.id);
   }
 
   @Post('staff/roles')
@@ -58,12 +48,12 @@ export class StaffController {
   createRole(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Body() createStaffRoleDto: CreateStaffRoleDto,
-    @Req() req: AuthenticatedRequest,
+    @CurrentUser() user: User,
   ) {
     return this.staffService.createStaffRole(
       restaurantId,
       createStaffRoleDto,
-      req.user.id,
+      user.id,
     );
   }
 
@@ -71,9 +61,9 @@ export class StaffController {
   @RequirePermission(PERMISSIONS.STAFF_READ)
   getRoles(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Req() req: AuthenticatedRequest,
+    @CurrentUser() user: User,
   ) {
-    return this.staffService.getStaffRoles(restaurantId, req.user.id);
+    return this.staffService.getStaffRoles(restaurantId, user.id);
   }
 
   @Patch('staff/roles/:roleId')
@@ -82,13 +72,13 @@ export class StaffController {
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('roleId') roleId: string,
     @Body() body: UpdateStaffRolePermissionsDto,
-    @Req() req: AuthenticatedRequest,
+    @CurrentUser() user: User,
   ) {
     return this.staffService.updateStaffRole(
       restaurantId,
       roleId,
       body.permissions,
-      req.user.id,
+      user.id,
     );
   }
 
@@ -97,9 +87,9 @@ export class StaffController {
   deleteRole(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('roleId') roleId: string,
-    @Req() req: AuthenticatedRequest,
+    @CurrentUser() user: User,
   ) {
-    return this.staffService.deleteStaffRole(restaurantId, roleId, req.user.id);
+    return this.staffService.deleteStaffRole(restaurantId, roleId, user.id);
   }
 
   @Post('staff')
@@ -107,22 +97,18 @@ export class StaffController {
   createStaff(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Body() createStaffDto: CreateStaffDto,
-    @Req() req: AuthenticatedRequest,
+    @CurrentUser() user: User,
   ) {
-    return this.staffService.createStaff(
-      restaurantId,
-      createStaffDto,
-      req.user.id,
-    );
+    return this.staffService.createStaff(restaurantId, createStaffDto, user.id);
   }
 
   @Get('staff')
   @RequirePermission(PERMISSIONS.STAFF_READ)
   getStaffList(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Req() req: AuthenticatedRequest,
+    @CurrentUser() user: User,
   ) {
-    return this.staffService.getStaffList(restaurantId, req.user.id);
+    return this.staffService.getStaffList(restaurantId, user.id);
   }
 
   @Patch('staff/:staffId')
@@ -131,13 +117,13 @@ export class StaffController {
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('staffId') staffId: string,
     @Body() updateStaffDto: UpdateStaffDto,
-    @Req() req: AuthenticatedRequest,
+    @CurrentUser() user: User,
   ) {
     return this.staffService.updateStaff(
       restaurantId,
       staffId,
       updateStaffDto,
-      req.user.id,
+      user.id,
     );
   }
 
@@ -146,9 +132,9 @@ export class StaffController {
   deleteStaff(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('staffId') staffId: string,
-    @Req() req: AuthenticatedRequest,
+    @CurrentUser() user: User,
   ) {
-    return this.staffService.deleteStaff(restaurantId, staffId, req.user.id);
+    return this.staffService.deleteStaff(restaurantId, staffId, user.id);
   }
 
   @Patch('staff/:staffId/photo')
@@ -169,12 +155,12 @@ export class StaffController {
       }),
     )
     file: UploadedStaffImage,
-    @Req() req: AuthenticatedRequest,
+    @CurrentUser() user: User,
   ) {
     return this.staffService.uploadStaffPhoto(
       restaurantId,
       staffId,
-      req.user.id,
+      user.id,
       file,
     );
   }

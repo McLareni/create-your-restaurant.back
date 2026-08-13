@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, Matches, IsUUID } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  Matches,
+  IsUUID,
+  IsNumber,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class PinLoginDto {
@@ -10,6 +16,11 @@ export class PinLoginDto {
 }
 
 export class AuthorizeVoidDto {
+  @ApiProperty({ example: 1 })
+  @IsNumber({}, { message: 'errors.validation_number' })
+  @IsNotEmpty({ message: 'errors.validation_required' })
+  managerId!: number;
+
   @ApiProperty({ example: '123456' })
   @IsString({ message: 'errors.validation_string' })
   @IsNotEmpty({ message: 'errors.validation_required' })

@@ -18,5 +18,8 @@
   "staff_created": "Працівника додано",
   "staff_updated": "Дані працівника оновлено",
   "staff_deleted": "Працівника видалено",
-  "photo_uploaded": "Фотографію завантажено"
+  "photo_uploaded": "Фотографію завантажено",
+  "restaurants_reordered": "Порядок закладів успішно збережено",
+"module_connected": "Модуль успішно підключено",
+"module_toggled": "Статус модуля змінено"
 }

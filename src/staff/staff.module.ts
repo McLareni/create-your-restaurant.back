@@ -1,6 +1,5 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { SessionAuthMiddleware } from 'src/restaurants/middleware/session-auth.middleware';
 import { UsersModule } from 'src/users/users.module';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { StaffController } from 'src/staff/staff.controller';
@@ -16,13 +15,6 @@ import { StaffOperationsService } from 'src/staff/staff-operations.service';
     StaffOperationsService,
     CloudinaryService,
     PrismaService,
-    SessionAuthMiddleware,
   ],
 })
-export class StaffModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(SessionAuthMiddleware)
-      .forRoutes(StaffController, StaffOperationsController);
-  }
-}
+export class StaffModule {}

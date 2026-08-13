@@ -6,17 +6,22 @@ import {
   IsString,
   MaxLength,
   IsArray,
+  MinLength,
+  Matches,
 } from 'class-validator';
 
 export class CreateRestaurantDto {
   @ApiProperty({ example: 'Pizza House' })
   @IsString({ message: 'errors.validation_string' })
+  @MinLength(3, { message: 'errors.validation_min_length' })
   @MaxLength(120, { message: 'errors.validation_max_length' })
   title!: string;
 
   @ApiProperty({ example: 'pizza-house' })
   @IsString({ message: 'errors.validation_string' })
+  @MinLength(2, { message: 'errors.validation_min_length' })
   @MaxLength(120, { message: 'errors.validation_max_length' })
+  @Matches(/^[a-z0-9-]+$/, { message: 'errors.validation_matches' })
   slug!: string;
 
   @ApiProperty({ enum: EnumTypeRestaurant, example: EnumTypeRestaurant.CAFE })

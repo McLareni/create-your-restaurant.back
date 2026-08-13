@@ -1,447 +1,302 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { describe, beforeAll, afterAll, it, expect } from '@jest/globals';
+import type { TestingModule } from '@nestjs/testing';
+import type { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { ValidationPipe } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
 import request from 'supertest';
-import { App } from 'supertest/types';
-import { CategoriesController } from './../src/menu/categories.controller';
-import { CategoriesService } from './../src/menu/categories.service';
-import { DishesController } from './../src/menu/dishes.controller';
-import { DishesService } from './../src/menu/dishes.service';
-import { MenuController } from './../src/menu/menu.controller';
-import { MenuService } from './../src/menu/menu.service';
-import { MenuOwnerController } from './../src/menu/menu-owner.controller';
-import { MenuOwnerService } from './../src/menu/menu-owner.service';
+import { AppModule } from 'src/app.module';
+import { PrismaService } from 'src/prisma/prisma.service';
 
-describe('MenuController (e2e)', () => {
-  let app: INestApplication<App>;
-  const menuServiceMock = {
-    create: jest.fn(),
-    getMenu: jest.fn(),
-  };
+describe('MenuModule (e2e)', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  let restaurantId: number;
+  let ownerToken: string;
+  let staffWithPermissionToken: string;
+  let staffNoPermissionToken: string;
 
-  const menuOwnerServiceMock = {
-    getFullMenu: jest.fn(),
-  };
-
-  const categoriesServiceMock = {
-    createCategory: jest.fn(),
-    updateCategory: jest.fn(),
-    deleteCategory: jest.fn(),
-  };
-
-  const dishesServiceMock = {
-    createDish: jest.fn(),
-    updateDish: jest.fn(),
-    deleteDish: jest.fn(),
-  };
-
-  beforeEach(async () => {
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      controllers: [
-        MenuController,
-        MenuOwnerController,
-        CategoriesController,
-        DishesController,
-      ],
-      providers: [
-        {
-          provide: MenuService,
-          useValue: menuServiceMock,
-        },
-        {
-          provide: MenuOwnerService,
-          useValue: menuOwnerServiceMock,
-        },
-        {
-          provide: CategoriesService,
-          useValue: categoriesServiceMock,
-        },
-        {
-          provide: DishesService,
-          useValue: dishesServiceMock,
-        },
-      ],
+      imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.use((req, _res, next) => {
-      (req as { user?: { id: number } }).user = { id: 1 };
-      next();
-    });
+
+    app.use(cookieParser());
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
         transform: true,
       }),
     );
+
     await app.init();
-  });
 
-  it('/menu (POST) should create menu with categories and dishes', async () => {
-    const payload = {
-      restaurantId: 1,
-      categories: [
-        {
-          name: 'Pizzas',
-          sortOrder: 1,
-          dishes: [
-            {
-              name: 'Margherita',
-              price: 12.5,
-              allergens: ['gluten', 'lactose'],
-            },
+    prisma = app.get(PrismaService);
+
+    // Initial Cleanup
+    await prisma.session.deleteMany({
+      where: {
+        token: {
+          in: [
+            'owner-session-menu',
+            'staff-yes-session-menu',
+            'staff-no-session-menu',
           ],
         },
-      ],
-    };
-
-    menuServiceMock.create.mockResolvedValue({
-      message: 'Menu created successfully',
-      restaurantId: 1,
-      categoriesCreated: 1,
-      dishesCreated: 1,
+      },
     });
-
-    await request(app.getHttpServer())
-      .post('/menu')
-      .send(payload)
-      .expect(201)
-      .expect({
-        message: 'Menu created successfully',
-        restaurantId: 1,
-        categoriesCreated: 1,
-        dishesCreated: 1,
-      });
-
-    expect(menuServiceMock.create).toHaveBeenCalledWith(payload, 1);
-  });
-
-  it('/menu (POST) should validate nested payload', async () => {
-    await request(app.getHttpServer())
-      .post('/menu')
-      .send({
-        restaurantId: 1,
-        categories: [
-          {
-            name: 'Pizzas',
-            dishes: [
-              {
-                name: '',
-                price: -1,
-              },
-            ],
-          },
-        ],
-      })
-      .expect(400);
-  });
-
-  it('/menu/:restaurantId (GET) should return menu for all users', async () => {
-    menuServiceMock.getMenu.mockResolvedValue({
-      restaurantId: 1,
-      categories: [
-        {
-          id: 'cat_1',
-          name: 'Pizzas',
-          sortOrder: 1,
-          dishes: [
-            {
-              id: 'dish_1',
-              name: 'Margherita',
-              description: null,
-              price: 12.5,
-              weight: null,
-              cookingTime: null,
-              calories: null,
-              isVegan: false,
-              isSpicy: false,
-              isLactoseFree: false,
-              badge: 'NONE',
-              allergens: ['gluten', 'lactose'],
-              isAvailable: true,
-            },
+    await prisma.staffRole.deleteMany({
+      where: { restaurant: { owner: { email: 'owner-menu-e2e@example.com' } } },
+    });
+    await prisma.restaurant.deleteMany({
+      where: { owner: { email: 'owner-menu-e2e@example.com' } },
+    });
+    await prisma.user.deleteMany({
+      where: {
+        email: {
+          in: [
+            'owner-menu-e2e@example.com',
+            'staff-menu-yes@example.com',
+            'staff-menu-no@example.com',
           ],
         },
-      ],
+      },
     });
 
-    await request(app.getHttpServer())
-      .get('/menu/1')
-      .expect(200)
-      .expect({
-        restaurantId: 1,
-        categories: [
-          {
-            id: 'cat_1',
-            name: 'Pizzas',
-            sortOrder: 1,
-            dishes: [
-              {
-                id: 'dish_1',
-                name: 'Margherita',
-                description: null,
-                price: 12.5,
-                weight: null,
-                cookingTime: null,
-                calories: null,
-                isVegan: false,
-                isSpicy: false,
-                isLactoseFree: false,
-                badge: 'NONE',
-                allergens: ['gluten', 'lactose'],
-                isAvailable: true,
-              },
-            ],
-          },
+    // Create Owner User
+    const owner = await prisma.user.create({
+      data: {
+        email: 'owner-menu-e2e@example.com',
+        role: 'OWNER',
+        isActive: true,
+      },
+    });
+
+    // Create Restaurant
+    const restaurant = await prisma.restaurant.create({
+      data: {
+        title: 'Test Menu Restaurant',
+        slug: 'test-menu-rest',
+        type: 'CAFE',
+        currency: 'USD',
+        language: 'UA',
+        ownerId: owner.id,
+      },
+    });
+    restaurantId = restaurant.id;
+
+    // Create roles
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _roleWithPermissions = await prisma.staffRole.create({
+      data: {
+        name: 'Menu Manager',
+        restaurantId: restaurant.id,
+        permissions: [
+          'menu:manage',
+          'menu:read',
+          'menu:create',
+          'menu:update',
+          'menu:delete',
         ],
-      });
+      },
+    });
 
-    expect(menuServiceMock.getMenu).toHaveBeenCalledWith(1);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _roleWithoutPermissions = await prisma.staffRole.create({
+      data: {
+        name: 'No Perm',
+        restaurantId: restaurant.id,
+        permissions: [],
+      },
+    });
+
+    // Create Staff Users
+    const staffWithPermission = await prisma.user.create({
+      data: {
+        email: 'staff-menu-yes@example.com',
+        role: 'STAFF',
+        isActive: true,
+        customRole: 'Menu Manager',
+        staffRestaurant: { connect: { id: restaurant.id } },
+      },
+    });
+
+    const staffNoPermission = await prisma.user.create({
+      data: {
+        email: 'staff-menu-no@example.com',
+        role: 'STAFF',
+        isActive: true,
+        customRole: 'No Perm',
+        staffRestaurant: { connect: { id: restaurant.id } },
+      },
+    });
+
+    // Create Sessions
+    const ownerSession = await prisma.session.create({
+      data: {
+        userId: owner.id,
+        token: 'owner-session-menu',
+        expiresAt: new Date(Date.now() + 1000000),
+      },
+    });
+    ownerToken = ownerSession.token;
+
+    const staffYesSession = await prisma.session.create({
+      data: {
+        userId: staffWithPermission.id,
+        token: 'staff-yes-session-menu',
+        expiresAt: new Date(Date.now() + 1000000),
+      },
+    });
+    staffWithPermissionToken = staffYesSession.token;
+
+    const staffNoSession = await prisma.session.create({
+      data: {
+        userId: staffNoPermission.id,
+        token: 'staff-no-session-menu',
+        expiresAt: new Date(Date.now() + 1000000),
+      },
+    });
+    staffNoPermissionToken = staffNoSession.token;
   });
 
-  it('/menu/:restaurantId (GET) should validate restaurantId', async () => {
-    await request(app.getHttpServer()).get('/menu/abc').expect(400);
-  });
-
-  it('/menu/owner/:restaurantId (GET) should return full menu for owner', async () => {
-    menuOwnerServiceMock.getFullMenu.mockResolvedValue({
-      restaurantId: 1,
-      categories: [
-        {
-          id: 'cat_1',
-          name: 'Pizzas',
-          sortOrder: 1,
-          dishes: [
-            {
-              id: 'dish_1',
-              name: 'Margherita',
-              description: null,
-              price: 12.5,
-              weight: null,
-              cookingTime: null,
-              calories: null,
-              isVegan: false,
-              isSpicy: false,
-              isLactoseFree: false,
-              badge: 'NONE',
-              allergens: ['gluten', 'lactose'],
-              isAvailable: true,
-            },
-            {
-              id: 'dish_2',
-              name: 'Seasonal Pizza',
-              description: null,
-              price: 10,
-              weight: null,
-              cookingTime: null,
-              calories: null,
-              isVegan: false,
-              isSpicy: false,
-              isLactoseFree: false,
-              badge: 'NONE',
-              allergens: [],
-              isAvailable: false,
-            },
-          ],
+  afterAll(async () => {
+    if (prisma) {
+      await prisma.session.deleteMany({
+        where: {
+          token: {
+            in: [
+              ownerToken,
+              staffWithPermissionToken,
+              staffNoPermissionToken,
+            ].filter(Boolean),
+          },
         },
-      ],
-    });
-
-    await request(app.getHttpServer())
-      .get('/menu/owner/1')
-      .expect(200)
-      .expect({
-        restaurantId: 1,
-        categories: [
-          {
-            id: 'cat_1',
-            name: 'Pizzas',
-            sortOrder: 1,
-            dishes: [
-              {
-                id: 'dish_1',
-                name: 'Margherita',
-                description: null,
-                price: 12.5,
-                weight: null,
-                cookingTime: null,
-                calories: null,
-                isVegan: false,
-                isSpicy: false,
-                isLactoseFree: false,
-                badge: 'NONE',
-                allergens: ['gluten', 'lactose'],
-                isAvailable: true,
-              },
-              {
-                id: 'dish_2',
-                name: 'Seasonal Pizza',
-                description: null,
-                price: 10,
-                weight: null,
-                cookingTime: null,
-                calories: null,
-                isVegan: false,
-                isSpicy: false,
-                isLactoseFree: false,
-                badge: 'NONE',
-                allergens: [],
-                isAvailable: false,
-              },
+      });
+      await prisma.staffRole.deleteMany({
+        where: {
+          restaurant: { owner: { email: 'owner-menu-e2e@example.com' } },
+        },
+      });
+      await prisma.restaurant.deleteMany({ where: { id: restaurantId } });
+      await prisma.user.deleteMany({
+        where: {
+          email: {
+            in: [
+              'owner-menu-e2e@example.com',
+              'staff-menu-yes@example.com',
+              'staff-menu-no@example.com',
             ],
           },
-        ],
+        },
       });
-
-    expect(menuOwnerServiceMock.getFullMenu).toHaveBeenCalledWith(1);
+      await prisma.$disconnect();
+    }
+    if (app) {
+      await app.close();
+    }
   });
 
-  it('/menu/owner/:restaurantId (GET) should validate restaurantId', async () => {
-    await request(app.getHttpServer()).get('/menu/owner/abc').expect(400);
-  });
+  describe('Public Menu', () => {
+    it('GET /restaurants/:restaurantId/menu - should return menu', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/menu/${restaurantId}`)
+        .expect(200);
 
-  it('/menu/owner/categories (POST) should create category', async () => {
-    const payload = {
-      restaurantId: 1,
-      name: 'Desserts',
-      sortOrder: 2,
-      dishes: [],
-    };
-
-    categoriesServiceMock.createCategory.mockResolvedValue({
-      message: 'Category created successfully',
-      category: { id: 'cat_2', ...payload },
+      expect(response.body).toHaveProperty('restaurantId', restaurantId);
+      expect(response.body).toHaveProperty('categories');
     });
 
-    await request(app.getHttpServer())
-      .post('/menu/owner/categories')
-      .send(payload)
-      .expect(201);
+    it('GET /restaurants/:restaurantId/menu - should return 404 for invalid ID', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/menu/999999')
+        .expect(404);
 
-    expect(categoriesServiceMock.createCategory).toHaveBeenCalledWith(
-      payload,
-      1,
-    );
+      expect(response.body.message).toBe('errors.restaurant_not_found');
+    });
   });
 
-  it('/menu/owner/categories/:categoryId (PATCH) should update category', async () => {
-    const payload = {
-      name: 'Updated category',
-    };
+  describe('Owner Menu Management', () => {
+    let categoryId: string;
 
-    categoriesServiceMock.updateCategory.mockResolvedValue({
-      message: 'Category updated successfully',
-      category: { id: 'cat_1', name: 'Updated category', sortOrder: 1 },
+    it('POST /menu/owner/categories - should reject unauthorized', async () => {
+      await request(app.getHttpServer())
+        .post('/menu/owner/categories')
+        .set('x-restaurant-id', String(restaurantId))
+        .send({ name: 'Pizza' })
+        .expect(401);
     });
 
-    await request(app.getHttpServer())
-      .patch('/menu/owner/categories/cat_1')
-      .send(payload)
-      .expect(200);
-
-    expect(categoriesServiceMock.updateCategory).toHaveBeenCalledWith(
-      'cat_1',
-      payload,
-      1,
-    );
-  });
-
-  it('/menu/owner/categories/:categoryId (DELETE) should delete category', async () => {
-    categoriesServiceMock.deleteCategory.mockResolvedValue({
-      message: 'Category deleted successfully',
+    it('POST /menu/owner/categories - should reject if staff has no permission', async () => {
+      await request(app.getHttpServer())
+        .post('/menu/owner/categories')
+        .set('Cookie', [`gustio_session=${staffNoPermissionToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .send({ name: 'Pizza' })
+        .expect(403);
     });
 
-    await request(app.getHttpServer())
-      .delete('/menu/owner/categories/cat_1')
-      .expect(200)
-      .expect({ message: 'Category deleted successfully' });
+    it('POST /menu/owner/categories - should create category as owner', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/menu/owner/categories')
+        .set('Cookie', [`gustio_session=${ownerToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .send({ name: 'Pizza', sortOrder: 1 })
+        .expect(201);
 
-    expect(categoriesServiceMock.deleteCategory).toHaveBeenCalledWith(
-      'cat_1',
-      1,
-    );
-  });
+      expect(response.body.message).toBe('success.category_created');
+      expect(response.body.category).toHaveProperty('id');
+      expect(response.body.category.name).toBe('Pizza');
 
-  it('/menu/owner/categories/:categoryId/dishes (POST) should create dish', async () => {
-    dishesServiceMock.createDish.mockResolvedValue({
-      message: 'Dish created successfully',
-      dish: {
-        id: 'dish_3',
-        categoryId: 'cat_2',
-        name: 'Tiramisu',
-        price: 6.5,
-        isAvailable: true,
-        images: [],
-      },
+      categoryId = response.body.category.id;
     });
 
-    await request(app.getHttpServer())
-      .post('/menu/owner/categories/cat_2/dishes')
-      .send({
-        name: 'Tiramisu',
-        price: 6.5,
-        isAvailable: true,
-      })
-      .expect(201);
+    it('POST /menu/owner/categories - should create category as staff with permission', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/menu/owner/categories')
+        .set('Cookie', [`gustio_session=${staffWithPermissionToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .send({ name: 'Burgers', sortOrder: 2 })
+        .expect(201);
 
-    expect(dishesServiceMock.createDish).toHaveBeenCalledWith(
-      'cat_2',
-      {
-        name: 'Tiramisu',
-        price: 6.5,
-        isAvailable: true,
-      },
-      1,
-      undefined,
-    );
-  });
-
-  it('/menu/owner/dishes/:dishId (PATCH) should update dish', async () => {
-    dishesServiceMock.updateDish.mockResolvedValue({
-      message: 'Dish updated successfully',
-      dish: {
-        id: 'dish_1',
-        isAvailable: false,
-        images: [],
-      },
+      expect(response.body.message).toBe('success.category_created');
+      expect(response.body.category.name).toBe('Burgers');
     });
 
-    await request(app.getHttpServer())
-      .patch('/menu/owner/dishes/dish_1')
-      .field('name', 'Updated dish name')
-      .attach('photo', Buffer.from('fake-image-content'), {
-        filename: 'updated-dish.png',
-        contentType: 'image/png',
-      })
-      .expect(200);
+    it('POST /menu/owner/categories/:categoryId/dishes - should create dish as owner', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/menu/owner/categories/${categoryId}/dishes`)
+        .set('Cookie', [`gustio_session=${ownerToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .send({
+          name: 'Margarita',
+          price: 150,
+          isAvailable: true,
+        })
+        .expect(201);
 
-    expect(dishesServiceMock.updateDish).toHaveBeenCalledWith(
-      'dish_1',
-      {
-        name: 'Updated dish name',
-      },
-      1,
-      expect.objectContaining({
-        originalname: 'updated-dish.png',
-        mimetype: 'image/png',
-      }),
-    );
-  });
-
-  it('/menu/owner/dishes/:dishId (DELETE) should delete dish', async () => {
-    dishesServiceMock.deleteDish.mockResolvedValue({
-      message: 'Dish deleted successfully',
+      expect(response.body).toHaveProperty('id');
+      expect(response.body.name).toBe('Margarita');
     });
 
-    await request(app.getHttpServer())
-      .delete('/menu/owner/dishes/dish_1')
-      .expect(200)
-      .expect({ message: 'Dish deleted successfully' });
+    it('DELETE /menu/owner/categories/:categoryId - should reject if staff has no permission', async () => {
+      await request(app.getHttpServer())
+        .delete(`/menu/owner/categories/${categoryId}`)
+        .set('Cookie', [`gustio_session=${staffNoPermissionToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .expect(403);
+    });
 
-    expect(dishesServiceMock.deleteDish).toHaveBeenCalledWith('dish_1', 1);
-  });
+    it('DELETE /menu/owner/categories/:categoryId - should delete category as staff with permission', async () => {
+      const response = await request(app.getHttpServer())
+        .delete(`/menu/owner/categories/${categoryId}`)
+        .set('Cookie', [`gustio_session=${staffWithPermissionToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .expect(200);
 
-  afterEach(async () => {
-    jest.clearAllMocks();
-    await app.close();
+      expect(response.body.message).toBe('success.category_deleted');
+    });
   });
 });

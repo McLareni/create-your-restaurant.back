@@ -31,6 +31,7 @@ import { RequirePermission } from 'src/guards/permission.decorator';
 import { FileSignatureValidator } from 'src/common/validators/file-signature.validator';
 import { ActiveRestaurantId } from 'src/common/decorators/active-restaurant-id.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions.constants';
+import { SessionAuthGuard } from 'src/guards/session-auth.guard';
 
 type UploadedDishImage = {
   buffer: Buffer;
@@ -41,7 +42,7 @@ type UploadedDishImage = {
 
 @ApiTags('Dishes')
 @Controller('menu/owner')
-@UseGuards(PermissionsGuard)
+@UseGuards(SessionAuthGuard, PermissionsGuard)
 export class DishesController {
   constructor(private readonly dishesService: DishesService) {}
 

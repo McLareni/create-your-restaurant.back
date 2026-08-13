@@ -1,296 +1,293 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
-import { TableStatus } from '@prisma/client';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { describe, beforeAll, afterAll, it, expect } from '@jest/globals';
+import type { TestingModule } from '@nestjs/testing';
+import type { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { ValidationPipe } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
 import request from 'supertest';
-import { App } from 'supertest/types';
-import { TablesController } from './../src/tables/tables.controller';
-import { TablesService } from './../src/tables/tables.service';
+import { AppModule } from 'src/app.module';
+import { PrismaService } from 'src/prisma/prisma.service';
 
-describe('TablesController (e2e)', () => {
-  let app: INestApplication<App>;
+describe('TablesModule (e2e)', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  let restaurantId: number;
+  let ownerToken: string;
+  let staffWithPermissionToken: string;
+  let staffNoPermissionToken: string;
+  let tableId: string;
 
-  const tablesServiceMock = {
-    createTable: jest.fn(),
-    getAll: jest.fn(),
-    checkTableExists: jest.fn(),
-    updateTable: jest.fn(),
-    deleteTable: jest.fn(),
-  };
-
-  beforeEach(async () => {
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      controllers: [TablesController],
-      providers: [
-        {
-          provide: TablesService,
-          useValue: tablesServiceMock,
-        },
-      ],
+      imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.use((req, _res, next) => {
-      (req as { user?: { id: number } }).user = { id: 1 };
-      next();
-    });
+    app.use(cookieParser());
     app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        transform: true,
-      }),
+      new ValidationPipe({ whitelist: true, transform: true }),
     );
     await app.init();
-  });
 
-  it('/restaurants/:restaurantId/tables (POST) should create table', async () => {
-    const payload = {
-      number: 12,
-      status: TableStatus.ACTIVE,
-      type: 'TERRACE',
-    };
+    prisma = app.get(PrismaService);
 
-    tablesServiceMock.createTable.mockResolvedValue({
-      message: 'Table created successfully',
-      table: {
-        id: 'table-1',
-        restaurantId: 1,
-        ...payload,
-        canAcceptOrders: true,
+    // Initial Cleanup
+    await prisma.session.deleteMany({
+      where: {
+        token: {
+          in: [
+            'owner-session-tables',
+            'staff-yes-session-tables',
+            'staff-no-session-tables',
+          ],
+        },
+      },
+    });
+    await prisma.staffRole.deleteMany({
+      where: {
+        restaurant: { owner: { email: 'owner-tables-e2e@example.com' } },
+      },
+    });
+    await prisma.restaurant.deleteMany({
+      where: { owner: { email: 'owner-tables-e2e@example.com' } },
+    });
+    await prisma.user.deleteMany({
+      where: {
+        email: {
+          in: [
+            'owner-tables-e2e@example.com',
+            'staff-tables-yes@example.com',
+            'staff-tables-no@example.com',
+          ],
+        },
       },
     });
 
-    await request(app.getHttpServer())
-      .post('/restaurants/1/tables')
-      .send(payload)
-      .expect(201)
-      .expect({
-        message: 'Table created successfully',
-        table: {
-          id: 'table-1',
-          restaurantId: 1,
-          ...payload,
-          canAcceptOrders: true,
+    // Create Owner User
+    const owner = await prisma.user.create({
+      data: {
+        email: 'owner-tables-e2e@example.com',
+        role: 'OWNER',
+        isActive: true,
+      },
+    });
+
+    // Create Restaurant
+    const restaurant = await prisma.restaurant.create({
+      data: {
+        title: 'Test Tables Rest',
+        slug: 'test-tables-rest',
+        type: 'CAFE',
+        currency: 'USD',
+        language: 'UA',
+        ownerId: owner.id,
+      },
+    });
+    restaurantId = restaurant.id;
+
+    // Create roles
+    await prisma.staffRole.create({
+      data: {
+        name: 'Tables Manager',
+        restaurantId: restaurant.id,
+        permissions: ['tables:manage', 'tables:read'],
+      },
+    });
+
+    await prisma.staffRole.create({
+      data: {
+        name: 'No Perm',
+        restaurantId: restaurant.id,
+        permissions: [],
+      },
+    });
+
+    // Create Staff Users
+    const staffWithPermission = await prisma.user.create({
+      data: {
+        email: 'staff-tables-yes@example.com',
+        role: 'STAFF',
+        isActive: true,
+        customRole: 'Tables Manager',
+        staffRestaurant: { connect: { id: restaurant.id } },
+      },
+    });
+
+    const staffNoPermission = await prisma.user.create({
+      data: {
+        email: 'staff-tables-no@example.com',
+        role: 'STAFF',
+        isActive: true,
+        customRole: 'No Perm',
+        staffRestaurant: { connect: { id: restaurant.id } },
+      },
+    });
+
+    // Create Sessions
+    const ownerSession = await prisma.session.create({
+      data: {
+        userId: owner.id,
+        token: 'owner-session-tables',
+        expiresAt: new Date(Date.now() + 1000000),
+      },
+    });
+    ownerToken = ownerSession.token;
+
+    const staffYesSession = await prisma.session.create({
+      data: {
+        userId: staffWithPermission.id,
+        token: 'staff-yes-session-tables',
+        expiresAt: new Date(Date.now() + 1000000),
+      },
+    });
+    staffWithPermissionToken = staffYesSession.token;
+
+    const staffNoSession = await prisma.session.create({
+      data: {
+        userId: staffNoPermission.id,
+        token: 'staff-no-session-tables',
+        expiresAt: new Date(Date.now() + 1000000),
+      },
+    });
+    staffNoPermissionToken = staffNoSession.token;
+  });
+
+  afterAll(async () => {
+    if (prisma) {
+      await prisma.session.deleteMany({
+        where: {
+          token: {
+            in: [
+              ownerToken,
+              staffWithPermissionToken,
+              staffNoPermissionToken,
+            ].filter(Boolean),
+          },
         },
       });
-
-    expect(tablesServiceMock.createTable).toHaveBeenCalledWith(1, payload, 1);
-  });
-
-  it('/restaurants/:restaurantId/tables (POST) should validate payload', async () => {
-    await request(app.getHttpServer())
-      .post('/restaurants/1/tables')
-      .send({
-        number: 0,
-        status: 'ACTIVE',
-        type: '',
-      })
-      .expect(400);
-  });
-
-  it('/restaurants/:restaurantId/tables (GET) should return tables list', async () => {
-    tablesServiceMock.getAll.mockResolvedValue([
-      {
-        id: 'table-1',
-        restaurantId: 1,
-        number: 12,
-        status: TableStatus.ACTIVE,
-        type: 'TERRACE',
-        canAcceptOrders: true,
-      },
-    ]);
-
-    await request(app.getHttpServer())
-      .get('/restaurants/1/tables')
-      .expect(200)
-      .expect([
-        {
-          id: 'table-1',
-          restaurantId: 1,
-          number: 12,
-          status: TableStatus.ACTIVE,
-          type: 'TERRACE',
-          canAcceptOrders: true,
-        },
-      ]);
-
-    expect(tablesServiceMock.getAll).toHaveBeenCalledWith(1, 1);
-  });
-
-  it('/restaurants/:restaurantId/tables/:tableId/exists (GET) should return exists=true', async () => {
-    tablesServiceMock.checkTableExists.mockResolvedValue({
-      exists: true,
-    });
-
-    await request(app.getHttpServer())
-      .get('/restaurants/1/tables/table-1/exists')
-      .expect(200)
-      .expect({ exists: true });
-
-    expect(tablesServiceMock.checkTableExists).toHaveBeenCalledWith(
-      1,
-      'table-1',
-    );
-  });
-
-  it('/restaurants/:restaurantId/tables/:tableId/exists (GET) should validate restaurantId', async () => {
-    await request(app.getHttpServer())
-      .get('/restaurants/not-number/tables/table-1/exists')
-      .expect(400);
-  });
-
-  it('/restaurants/:restaurantId/tables/:tableId (PATCH) should update table', async () => {
-    const payload = {
-      status: TableStatus.INACTIVE,
-      type: 'BAR',
-    };
-
-    tablesServiceMock.updateTable.mockResolvedValue({
-      message: 'Table updated successfully',
-      table: {
-        id: 'table-1',
-        restaurantId: 1,
-        number: 12,
-        ...payload,
-        canAcceptOrders: false,
-      },
-    });
-
-    await request(app.getHttpServer())
-      .patch('/restaurants/1/tables/table-1')
-      .send(payload)
-      .expect(200)
-      .expect({
-        message: 'Table updated successfully',
-        table: {
-          id: 'table-1',
-          restaurantId: 1,
-          number: 12,
-          ...payload,
-          canAcceptOrders: false,
+      await prisma.staffRole.deleteMany({
+        where: {
+          restaurant: { owner: { email: 'owner-tables-e2e@example.com' } },
         },
       });
-
-    expect(tablesServiceMock.updateTable).toHaveBeenCalledWith(
-      1,
-      'table-1',
-      payload,
-      1,
-    );
+      await prisma.restaurant.deleteMany({ where: { id: restaurantId } });
+      await prisma.user.deleteMany({
+        where: {
+          email: {
+            in: [
+              'owner-tables-e2e@example.com',
+              'staff-tables-yes@example.com',
+              'staff-tables-no@example.com',
+            ],
+          },
+        },
+      });
+      await prisma.$disconnect();
+    }
+    if (app) {
+      await app.close();
+    }
   });
 
-  it('/restaurants/:restaurantId/tables/:tableId (DELETE) should delete table', async () => {
-    tablesServiceMock.deleteTable.mockResolvedValue({
-      message: 'Table deleted successfully',
+  describe('POST /restaurants/:restaurantId/dining-table', () => {
+    it('should return 401 if not authenticated', async () => {
+      await request(app.getHttpServer())
+        .post(`/restaurants/${restaurantId}/dining-table`)
+        .set('x-restaurant-id', String(restaurantId))
+        .send({ number: 5, type: 'TERRACE', status: 'ACTIVE' })
+        .expect(401);
     });
 
-    await request(app.getHttpServer())
-      .delete('/restaurants/1/tables/table-1')
-      .expect(200)
-      .expect({ message: 'Table deleted successfully' });
+    it('should return 403 if staff has no permission', async () => {
+      await request(app.getHttpServer())
+        .post(`/restaurants/${restaurantId}/dining-table`)
+        .set('Cookie', [`gustio_session=${staffNoPermissionToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .send({ number: 5, type: 'TERRACE', status: 'ACTIVE' })
+        .expect(403);
+    });
 
-    expect(tablesServiceMock.deleteTable).toHaveBeenCalledWith(1, 'table-1', 1);
+    it('should create table as owner', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/restaurants/${restaurantId}/dining-table`)
+        .set('Cookie', [`gustio_session=${ownerToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .send({ number: 5, type: 'TERRACE', status: 'ACTIVE' })
+        .expect(201);
+
+      expect(response.body).toHaveProperty('id');
+      tableId = response.body.id;
+    });
+
+    it('should create table as staff with permission', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/restaurants/${restaurantId}/dining-table`)
+        .set('Cookie', [`gustio_session=${staffWithPermissionToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .send({ number: 6, type: 'TERRACE', status: 'ACTIVE' })
+        .expect(201);
+
+      expect(response.body).toHaveProperty('id');
+    });
   });
 
-  it('Swagger should fully describe tables endpoints', () => {
-    const swaggerConfig = new DocumentBuilder()
-      .setTitle('Create Your Restaurant API')
-      .setDescription('API documentation for Create Your Restaurant service')
-      .setVersion('1.0')
-      .addCookieAuth(
-        'gustio_session',
-        {
-          type: 'apiKey',
-          in: 'cookie',
-          name: 'gustio_session',
-          description: 'Session token from cookie',
-        },
-        'gustio_session',
-      )
-      .build();
+  describe('GET /restaurants/:restaurantId/dining-table', () => {
+    it('should return 401 if not authenticated', async () => {
+      await request(app.getHttpServer())
+        .get(`/restaurants/${restaurantId}/dining-table`)
+        .set('x-restaurant-id', String(restaurantId))
+        .expect(401);
+    });
 
-    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    it('should return 403 if staff has no permission', async () => {
+      await request(app.getHttpServer())
+        .get(`/restaurants/${restaurantId}/dining-table`)
+        .set('Cookie', [`gustio_session=${staffNoPermissionToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .expect(403);
+    });
 
-    const tablesCollectionPath =
-      document.paths['/restaurants/{restaurantId}/tables'];
-    expect(tablesCollectionPath).toBeDefined();
-    expect(tablesCollectionPath.post).toBeDefined();
-    expect(tablesCollectionPath.post!.summary).toBe('Create table');
-    expect(tablesCollectionPath.post!.parameters).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          in: 'path',
-          name: 'restaurantId',
-          required: true,
-        }),
-      ]),
-    );
-    expect(tablesCollectionPath.post!.requestBody).toBeDefined();
-    const postRequestBody = tablesCollectionPath.post!.requestBody as {
-      content?: Record<string, unknown>;
-    };
-    expect(postRequestBody.content?.['application/json']).toBeDefined();
-    expect(Object.keys(tablesCollectionPath.post!.responses)).toEqual(
-      expect.arrayContaining(['201']),
-    );
-    expect(tablesCollectionPath.post!.security).toEqual([
-      { gustio_session: [] },
-    ]);
+    it('should return tables list', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/restaurants/${restaurantId}/dining-table`)
+        .set('Cookie', [`gustio_session=${ownerToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .expect(200);
 
-    expect(tablesCollectionPath.get).toBeDefined();
-    expect(tablesCollectionPath.get!.summary).toBe('Get all restaurant tables');
-    expect(Object.keys(tablesCollectionPath.get!.responses)).toEqual(
-      expect.arrayContaining(['200']),
-    );
-    expect(tablesCollectionPath.get!.security).toEqual([
-      { gustio_session: [] },
-    ]);
-
-    const tableItemPath =
-      document.paths['/restaurants/{restaurantId}/tables/{tableId}'];
-    expect(tableItemPath).toBeDefined();
-    expect(tableItemPath.patch).toBeDefined();
-    expect(tableItemPath.patch!.summary).toBe('Update table');
-    expect(tableItemPath.patch!.parameters).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ in: 'path', name: 'restaurantId' }),
-        expect.objectContaining({ in: 'path', name: 'tableId' }),
-      ]),
-    );
-    expect(tableItemPath.patch!.requestBody).toBeDefined();
-    expect(Object.keys(tableItemPath.patch!.responses)).toEqual(
-      expect.arrayContaining(['200']),
-    );
-    expect(tableItemPath.patch!.security).toEqual([{ gustio_session: [] }]);
-
-    expect(tableItemPath.delete).toBeDefined();
-    expect(tableItemPath.delete!.summary).toBe('Delete a table');
-    expect(Object.keys(tableItemPath.delete!.responses)).toEqual(
-      expect.arrayContaining(['200']),
-    );
-    expect(tableItemPath.delete!.security).toEqual([{ gustio_session: [] }]);
-
-    const tableExistsPath =
-      document.paths['/restaurants/{restaurantId}/tables/{tableId}/exists'];
-    expect(tableExistsPath).toBeDefined();
-    expect(tableExistsPath.get).toBeDefined();
-    expect(tableExistsPath.get!.summary).toBe(
-      'Check if table exists by restaurant and table id',
-    );
-    expect(tableExistsPath.get!.parameters).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ in: 'path', name: 'restaurantId' }),
-        expect.objectContaining({ in: 'path', name: 'tableId' }),
-      ]),
-    );
-    expect(Object.keys(tableExistsPath.get!.responses)).toEqual(
-      expect.arrayContaining(['200', '400']),
-    );
-    expect(tableExistsPath.get!.security).toBeUndefined();
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body.length).toBeGreaterThanOrEqual(2);
+    });
   });
 
-  afterEach(async () => {
-    jest.clearAllMocks();
-    await app.close();
+  describe('GET /restaurants/:restaurantId/dining-table/:tableId/exists', () => {
+    it('should check table exists without authentication', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/restaurants/${restaurantId}/dining-table/${tableId}/exists`)
+        .expect(200);
+
+      expect(response.body.exists).toBe(true);
+    });
+  });
+
+  describe('DELETE /restaurants/:restaurantId/dining-table/:tableId', () => {
+    it('should return 403 if staff has no permission', async () => {
+      await request(app.getHttpServer())
+        .delete(`/restaurants/${restaurantId}/dining-table/${tableId}`)
+        .set('Cookie', [`gustio_session=${staffNoPermissionToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .expect(403);
+    });
+
+    it('should delete table as staff with permission', async () => {
+      const response = await request(app.getHttpServer())
+        .delete(`/restaurants/${restaurantId}/dining-table/${tableId}`)
+        .set('Cookie', [`gustio_session=${staffWithPermissionToken}`])
+        .set('x-restaurant-id', String(restaurantId))
+        .expect(200);
+
+      expect(response.body.message).toBe(
+        'responses.table_deleted_successfully',
+      );
+    });
   });
 });

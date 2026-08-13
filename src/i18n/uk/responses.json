@@ -1,5 +1,7 @@
 {
   "combo_deleted": "Комбо-меню успішно видалено",
   "waiter_call_resolved": "Виклик офіціанта скасовано",
-  "modifier_group_deleted": "Групу модифікаторів успішно видалено"
+  "modifier_group_deleted": "Групу модифікаторів успішно видалено",
+  "order_voided_successfully": "Замовлення успішно скасовано менеджером",
+"table_deleted_successfully": "Стіл успішно видалено"
 }

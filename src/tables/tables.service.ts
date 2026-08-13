@@ -80,7 +80,7 @@ export class TablesService {
     await this.prismaService.diningTable.delete({
       where: { id },
     });
-    return { success: true };
+    return { message: 'responses.table_deleted_successfully' };
   }
 
   async checkPublicTableExists(restaurantId: number, id: string) {
