@@ -38,9 +38,12 @@ export class LiveMonitorGateway implements OnGatewayConnection {
     try {
       let token = client.handshake.auth?.token;
       if (!token) {
-        token = this.extractCookieValue(client.handshake.headers.cookie, 'gustio_session');
+        token = this.extractCookieValue(
+          client.handshake.headers.cookie,
+          'gustio_session',
+        );
       }
-      
+
       if (!token) {
         throw new Error('errors.session_token_required');
       }
@@ -53,7 +56,10 @@ export class LiveMonitorGateway implements OnGatewayConnection {
         return;
       }
 
-      await this.liveMonitorService.ensureRestaurantAccess(restaurantId, user.id);
+      await this.liveMonitorService.ensureRestaurantAccess(
+        restaurantId,
+        user.id,
+      );
       await client.join(this.getRestaurantRoom(restaurantId));
     } catch {
       client.disconnect(true);
@@ -94,7 +100,10 @@ export class LiveMonitorGateway implements OnGatewayConnection {
     orderId: string,
     tableId: string,
   ) {
-    const tableSnapshot = await this.liveMonitorService.getSingleTableSnapshot(restaurantId, tableId);
+    const tableSnapshot = await this.liveMonitorService.getSingleTableSnapshot(
+      restaurantId,
+      tableId,
+    );
     const room = this.getRestaurantRoom(restaurantId);
 
     this.server.to(room).emit('live-monitor:orders-changed', {

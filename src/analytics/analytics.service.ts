@@ -6,9 +6,30 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class AnalyticsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getSummary(restaurantId: number) {
+  async getSummary(
+    restaurantId: number,
+    startDateStr?: string,
+    endDateStr?: string,
+  ) {
+    const end = endDateStr ? new Date(endDateStr) : new Date();
+    const start = startDateStr ? new Date(startDateStr) : new Date();
+
+    if (!startDateStr) {
+      start.setDate(start.getDate() - 7);
+      start.setHours(0, 0, 0, 0);
+    }
+
+    // Ensure end date includes the entire day if not explicitly set with time
+    if (!endDateStr || !endDateStr.includes('T')) {
+      end.setHours(23, 59, 59, 999);
+    }
+
     const aggregateResult = await this.prisma.order.aggregate({
-      where: { restaurantId, status: OrderStatus.COMPLETED },
+      where: {
+        restaurantId,
+        status: OrderStatus.COMPLETED,
+        createdAt: { gte: start, lte: end },
+      },
       _sum: { totalAmount: true },
       _count: { id: true },
     });
@@ -17,17 +38,13 @@ export class AnalyticsService {
     const totalOrders = aggregateResult._count.id ?? 0;
     const averageCheck = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    sevenDaysAgo.setHours(0, 0, 0, 0);
-
     const topItemsAggregation = await this.prisma.orderItem.groupBy({
       by: ['dishId'],
       where: {
         order: {
           restaurantId,
           status: OrderStatus.COMPLETED,
-          createdAt: { gte: sevenDaysAgo },
+          createdAt: { gte: start, lte: end },
         },
       },
       _sum: {
@@ -66,29 +83,35 @@ export class AnalyticsService {
       FROM "Order"
       WHERE "restaurantId" = ${restaurantId}
         AND "status" = 'COMPLETED'::"OrderStatus"
-        AND "createdAt" >= ${sevenDaysAgo}
+        AND "createdAt" >= ${start}
+        AND "createdAt" <= ${end}
       GROUP BY DATE_TRUNC('day', "createdAt")
       ORDER BY day ASC;
     `;
 
     const chartMap = new Map<string, number>();
     for (const row of rawChartData) {
-      const dateString = new Date(row.day).toLocaleDateString('uk-UA', {
-        day: '2-digit',
-        month: '2-digit',
-      });
+      const d = new Date(row.day);
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const dateString = `${day}.${month}`;
       chartMap.set(dateString, Number(row.revenue));
     }
 
     const chartData: { date: string; revenue: number }[] = [];
 
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateString = d.toLocaleDateString('uk-UA', {
-        day: '2-digit',
-        month: '2-digit',
-      });
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const daysToIterate = Math.min(diffDays, 30); // limit to 30 days for chart
+
+    for (let i = daysToIterate - 1; i >= 0; i--) {
+      // Create a date in UTC representing the day to ensure it matches chartMap
+      const d = new Date(
+        Date.UTC(end.getFullYear(), end.getMonth(), end.getDate() - i),
+      );
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const dateString = `${day}.${month}`;
 
       chartData.push({
         date: dateString,
@@ -96,12 +119,83 @@ export class AnalyticsService {
       });
     }
 
+    // Orders by Type
+    const typeAggregation = await this.prisma.order.groupBy({
+      by: ['type'],
+      where: {
+        restaurantId,
+        status: OrderStatus.COMPLETED,
+        createdAt: { gte: start, lte: end },
+      },
+      _sum: { totalAmount: true },
+      _count: { id: true },
+    });
+    const ordersByType = typeAggregation.map((agg) => ({
+      type: agg.type,
+      revenue: agg._sum.totalAmount ?? 0,
+      count: agg._count.id ?? 0,
+    }));
+
+    // Peak Hours
+    const rawPeakHours = await this.prisma.$queryRaw<
+      { hour_of_day: number; count: number }[]
+    >`
+      SELECT EXTRACT(HOUR FROM "createdAt")::int as hour_of_day, COUNT(id)::int as count
+      FROM "Order"
+      WHERE "restaurantId" = ${restaurantId}
+        AND "createdAt" >= ${start}
+        AND "createdAt" <= ${end}
+      GROUP BY EXTRACT(HOUR FROM "createdAt")
+      ORDER BY hour_of_day ASC;
+    `;
+    const peakHours = rawPeakHours.map((row) => ({
+      hour: `${String(row.hour_of_day).padStart(2, '0')}:00`,
+      ordersCount: Number(row.count),
+    }));
+
+    // Waiter Performance
+    const waiterAggregation = await this.prisma.order.groupBy({
+      by: ['waiterId'],
+      where: {
+        restaurantId,
+        status: OrderStatus.COMPLETED,
+        createdAt: { gte: start, lte: end },
+        waiterId: { not: null },
+      },
+      _sum: { totalAmount: true },
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+      take: 5,
+    });
+
+    const waiterIds = waiterAggregation.map((a) => a.waiterId as number);
+    const waitersInfo = await this.prisma.user.findMany({
+      where: { id: { in: waiterIds } },
+      select: { id: true, firstName: true, lastName: true, email: true },
+    });
+    const waiterMap = new Map(waitersInfo.map((w) => [w.id, w]));
+
+    const waiterPerformance = waiterAggregation.map((agg) => {
+      const w = waiterMap.get(agg.waiterId as number);
+      return {
+        waiterId: agg.waiterId,
+        name: w
+          ? `${w.firstName ?? ''} ${w.lastName ?? ''}`.trim() || w.email
+          : 'Unknown',
+        completedOrders: agg._count.id ?? 0,
+        revenueGenerated: agg._sum.totalAmount ?? 0,
+      };
+    });
+
     return {
       totalRevenue,
       totalOrders,
       averageCheck,
       topDishes,
       chartData,
+      ordersByType,
+      peakHours,
+      waiterPerformance,
     };
   }
 }

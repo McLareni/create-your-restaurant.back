@@ -14,10 +14,11 @@ import { RequirePermission } from 'src/guards/permission.decorator';
 import { ActiveRestaurantId } from 'src/common/decorators/active-restaurant-id.decorator';
 import { CreateLookupDto } from 'src/menu/dto/create-lookup.dto';
 import { PERMISSIONS } from 'src/common/constants/permissions.constants';
+import { SessionAuthGuard } from 'src/guards/session-auth.guard';
 
 @ApiTags('Menu Owner')
 @Controller('menu/owner')
-@UseGuards(PermissionsGuard)
+@UseGuards(SessionAuthGuard, PermissionsGuard)
 export class MenuOwnerController {
   constructor(private readonly menuOwnerService: MenuOwnerService) {}
 

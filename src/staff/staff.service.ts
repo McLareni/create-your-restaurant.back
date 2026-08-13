@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { hash } from 'bcrypt';
 import { EnumRole } from '@prisma/client';
@@ -49,7 +50,10 @@ export class StaffService {
     userId: number,
   ) {
     const restaurant = await this.prismaService.restaurant.findFirst({
-      where: { id: restaurantId, ownerId: userId },
+      where: {
+        id: restaurantId,
+        OR: [{ ownerId: userId }, { staff: { some: { id: userId } } }],
+      },
       select: { id: true },
     });
     if (!restaurant) {
@@ -69,11 +73,25 @@ export class StaffService {
       throw new BadRequestException('errors.role_exists');
     }
 
+    const availablePermissionGroups = await this.getAvailablePermissions(
+      restaurantId,
+      userId,
+    );
+    const availablePermissionIds = new Set(
+      availablePermissionGroups.flatMap((group) =>
+        group.actions.map((action) => action.id),
+      ),
+    );
+
+    const validPermissions = (createStaffRoleDto.permissions || []).filter(
+      (permission) => availablePermissionIds.has(permission),
+    );
+
     return this.prismaService.staffRole.create({
       data: {
         restaurantId,
         name: roleName,
-        permissions: createStaffRoleDto.permissions || [],
+        permissions: validPermissions,
       },
     });
   }
@@ -88,16 +106,32 @@ export class StaffService {
       where: {
         id: roleId,
         restaurantId,
-        restaurant: { ownerId: userId },
+        restaurant: {
+          OR: [{ ownerId: userId }, { staff: { some: { id: userId } } }],
+        },
       },
     });
     if (!role) {
       throw new NotFoundException('errors.access_denied');
     }
 
+    const availablePermissionGroups = await this.getAvailablePermissions(
+      restaurantId,
+      userId,
+    );
+    const availablePermissionIds = new Set(
+      availablePermissionGroups.flatMap((group) =>
+        group.actions.map((action) => action.id),
+      ),
+    );
+
+    const validPermissions = permissions.filter((permission) =>
+      availablePermissionIds.has(permission),
+    );
+
     return this.prismaService.staffRole.update({
       where: { id: roleId },
-      data: { permissions },
+      data: { permissions: validPermissions },
     });
   }
 
@@ -124,7 +158,9 @@ export class StaffService {
       where: {
         id: roleId,
         restaurantId,
-        restaurant: { ownerId: userId },
+        restaurant: {
+          OR: [{ ownerId: userId }, { staff: { some: { id: userId } } }],
+        },
       },
     });
     if (!role) {
@@ -168,6 +204,21 @@ export class StaffService {
     }
 
     if (createStaffDto.role !== 'STAFF') {
+      // Check caller's permission to assign roles
+      const caller = await this.prismaService.user.findUnique({
+        where: { id: userId },
+      });
+      let canAssignRole = caller?.role === 'OWNER';
+      if (!canAssignRole && caller?.customRole) {
+        const callerRole = await this.prismaService.staffRole.findFirst({
+          where: { restaurantId, name: caller.customRole },
+        });
+        canAssignRole = !!callerRole?.permissions.includes('staff:roles');
+      }
+      if (!canAssignRole) {
+        throw new ForbiddenException('errors.missing_staff_roles_permission');
+      }
+
       const roleExists = await this.prismaService.staffRole.findFirst({
         where: { restaurantId, name: createStaffDto.role },
       });
@@ -271,11 +322,41 @@ export class StaffService {
     }
 
     if (role !== undefined && role !== 'STAFF') {
+      // Check caller's permission to assign roles
+      const caller = await this.prismaService.user.findUnique({
+        where: { id: userId },
+      });
+      let canAssignRole = caller?.role === 'OWNER';
+      if (!canAssignRole && caller?.customRole) {
+        const callerRole = await this.prismaService.staffRole.findFirst({
+          where: { restaurantId, name: caller.customRole },
+        });
+        canAssignRole = !!callerRole?.permissions.includes('staff:roles');
+      }
+      if (!canAssignRole) {
+        throw new ForbiddenException('errors.missing_staff_roles_permission');
+      }
+
       const roleExists = await this.prismaService.staffRole.findFirst({
         where: { restaurantId, name: role },
       });
       if (!roleExists) {
         throw new BadRequestException('errors.role_not_found');
+      }
+    } else if (role === 'STAFF') {
+      // Still need permission to remove a role
+      const caller = await this.prismaService.user.findUnique({
+        where: { id: userId },
+      });
+      let canAssignRole = caller?.role === 'OWNER';
+      if (!canAssignRole && caller?.customRole) {
+        const callerRole = await this.prismaService.staffRole.findFirst({
+          where: { restaurantId, name: caller.customRole },
+        });
+        canAssignRole = !!callerRole?.permissions.includes('staff:roles');
+      }
+      if (!canAssignRole) {
+        throw new ForbiddenException('errors.missing_staff_roles_permission');
       }
     }
 
@@ -305,6 +386,10 @@ export class StaffService {
     const numericId = Number(staffId);
     if (Number.isNaN(numericId)) {
       throw new BadRequestException('errors.invalid_id');
+    }
+
+    if (numericId === userId) {
+      throw new BadRequestException('errors.cannot_delete_self');
     }
 
     const staff = await this.prismaService.user.findFirst({

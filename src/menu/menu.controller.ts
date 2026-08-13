@@ -3,7 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { MenuService } from 'src/menu/menu.service';
 
 @ApiTags('Menu')
-@Controller('restaurants/:restaurantId/menu')
+@Controller('menu')
 export class MenuController {
   constructor(private readonly menuService: MenuService) {}
 
@@ -12,7 +12,7 @@ export class MenuController {
     return this.menuService.getMenuBySlug(slug);
   }
 
-  @Get()
+  @Get(':restaurantId')
   getMenu(@Param('restaurantId', ParseIntPipe) restaurantId: number) {
     return this.menuService.getMenu(restaurantId);
   }

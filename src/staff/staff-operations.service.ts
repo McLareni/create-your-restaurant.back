@@ -13,11 +13,13 @@ export class StaffOperationsService {
 
   async authorizeVoid(
     restaurantId: number,
+    managerId: number,
     managerPin: string,
     orderId: string,
   ) {
-    const managers = await this.prismaService.user.findMany({
+    const manager = await this.prismaService.user.findFirst({
       where: {
+        id: managerId,
         restaurantId,
         role: EnumRole.OWNER,
         isActive: true,
@@ -29,17 +31,13 @@ export class StaffOperationsService {
       },
     });
 
-    const comparisons = await Promise.all(
-      managers.map(async (manager) => {
-        if (!manager.pinCode) return null;
-        const isValid = await compare(managerPin, manager.pinCode);
-        return isValid ? manager : null;
-      }),
-    );
+    if (!manager || !manager.pinCode) {
+      throw new UnauthorizedException('errors.manager_authorization_failed');
+    }
 
-    const authorizedManager = comparisons.find((m) => m !== null);
+    const isValid = await compare(managerPin, manager.pinCode);
 
-    if (!authorizedManager) {
+    if (!isValid) {
       throw new UnauthorizedException('errors.manager_authorization_failed');
     }
 
@@ -59,6 +57,9 @@ export class StaffOperationsService {
       },
     });
 
-    return { success: true, voidedBy: authorizedManager.firstName };
+    return {
+      message: 'responses.order_voided_successfully',
+      voidedBy: manager.firstName,
+    };
   }
 }

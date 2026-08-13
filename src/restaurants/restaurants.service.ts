@@ -6,6 +6,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { PERMISSIONS } from 'src/common/constants/permissions.constants';
+import { MODULE_CATALOG } from 'src/common/constants/modules.constants';
 import type { CreateRestaurantDto } from 'src/restaurants/dto/create-restaurant.dto';
 import type { UploadedStaffImage } from 'src/cloudinary/cloudinary.service';
 
@@ -84,7 +85,7 @@ export class RestaurantsService {
         }),
       ),
     );
-    return { success: true };
+    return { message: 'success.restaurants_reordered' };
   }
 
   async uploadCover(file: UploadedStaffImage) {
@@ -209,7 +210,37 @@ export class RestaurantsService {
     return { message: 'success.restaurant_deleted' };
   }
 
-  async connectModule(restaurantId: number, moduleKey: string, userId: number) {
+  async connectModule(
+    restaurantId: number,
+    moduleKey: string,
+    activationCode: string | undefined,
+    userId: number,
+  ) {
+    const moduleInfo = MODULE_CATALOG.find((m) => m.key === moduleKey);
+    if (!moduleInfo) {
+      throw new BadRequestException('errors.invalid_module_key');
+    }
+
+    if (moduleInfo.price > 0) {
+      if (!activationCode || activationCode.trim() !== 'GUSTIO-2026') {
+        throw new BadRequestException('errors.invalid_activation_code');
+      }
+    }
+
+    if (moduleKey === 'multi-restaurant') {
+      const allUserRestaurants = await this.prismaService.restaurant.findMany({
+        where: { ownerId: userId },
+        select: { id: true, purchasedModules: true },
+      });
+
+      const alreadyPurchased = allUserRestaurants.some((r) =>
+        r.purchasedModules.includes('multi-restaurant'),
+      );
+      if (alreadyPurchased) {
+        throw new BadRequestException('errors.module_already_purchased');
+      }
+    }
+
     const restaurant = await this.prismaService.restaurant.findFirst({
       where: { id: restaurantId, ownerId: userId },
       select: { id: true, purchasedModules: true, activeModules: true },
@@ -242,7 +273,7 @@ export class RestaurantsService {
       data: { purchasedModules: purchased, activeModules: active },
     });
 
-    return { success: true };
+    return { message: 'success.module_connected' };
   }
 
   async toggleModule(
@@ -260,6 +291,11 @@ export class RestaurantsService {
       throw new NotFoundException('errors.restaurant_not_found');
     }
 
+    const moduleInfo = MODULE_CATALOG.find((m) => m.key === moduleKey);
+    if (!moduleInfo) {
+      throw new BadRequestException('errors.invalid_module_key');
+    }
+
     if (moduleKey === 'multi-restaurant') {
       const allUserRestaurants = await this.prismaService.restaurant.findMany({
         where: { ownerId: userId },
@@ -272,6 +308,10 @@ export class RestaurantsService {
 
       if (!mainRestaurant) {
         throw new BadRequestException('errors.module_not_purchased');
+      }
+
+      if (restaurantId !== mainRestaurant.id) {
+        throw new BadRequestException('errors.only_main_can_toggle_multi');
       }
 
       await this.prismaService.$transaction(
@@ -297,7 +337,7 @@ export class RestaurantsService {
         }),
       );
 
-      return { success: true };
+      return { message: 'success.module_toggled' };
     }
 
     const purchased = restaurant.purchasedModules || [
@@ -329,6 +369,6 @@ export class RestaurantsService {
       data: { activeModules: active },
     });
 
-    return { success: true };
+    return { message: 'success.module_toggled' };
   }
 }

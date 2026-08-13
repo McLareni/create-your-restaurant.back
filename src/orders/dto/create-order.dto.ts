@@ -8,6 +8,7 @@ import {
   IsInt,
   IsOptional,
   IsUUID,
+  Max,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -23,12 +24,14 @@ export class CreateOrderItemModifierDto {
   @ApiPropertyOptional({
     example: 2,
     minimum: 1,
+    maximum: 100,
     default: 1,
     description: 'Quantity of the selected modifier option',
   })
   @IsOptional()
   @IsInt({ message: 'errors.validation_int' })
   @Min(1, { message: 'errors.validation_min_1' })
+  @Max(100, { message: 'errors.validation_max_100' })
   quantity?: number;
 }
 
@@ -40,9 +43,10 @@ export class CreateOrderItemDto {
   @IsUUID(4, { message: 'errors.validation_uuid' })
   dishId!: string;
 
-  @ApiProperty({ example: 2, minimum: 1 })
+  @ApiProperty({ example: 2, minimum: 1, maximum: 100 })
   @IsInt({ message: 'errors.validation_int' })
   @Min(1, { message: 'errors.validation_min_1' })
+  @Max(100, { message: 'errors.validation_max_100' })
   quantity!: number;
 
   @ApiPropertyOptional({

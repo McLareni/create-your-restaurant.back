@@ -3,28 +3,25 @@ import {
   Get,
   Param,
   ParseIntPipe,
-  Patch,
-  Req,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBody,
   ApiCookieAuth,
   ApiOperation,
   ApiParam,
-  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { LiveMonitorGateway } from 'src/live-monitor/live-monitor.gateway';
 import { LiveMonitorService } from 'src/live-monitor/live-monitor.service';
 import { PermissionsGuard } from 'src/guards/permissions.guard';
+import { SessionAuthGuard } from 'src/guards/session-auth.guard';
 import { RequirePermission } from 'src/guards/permission.decorator';
-import type { AuthenticatedRequest } from 'src/restaurants/middleware/session-auth.middleware';
 import { PERMISSIONS } from 'src/common/constants/permissions.constants';
 
 @ApiTags('Live monitor')
 @Controller('restaurants/:restaurantId/live-monitor')
-@UseGuards(PermissionsGuard)
+@UseGuards(SessionAuthGuard, PermissionsGuard)
 export class LiveMonitorController {
   constructor(
     private readonly liveMonitorService: LiveMonitorService,
@@ -40,47 +37,30 @@ export class LiveMonitorController {
   @RequirePermission(PERMISSIONS.LIVE_READ)
   getTablesWithActiveOrders(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.liveMonitorService.getTablesWithActiveOrders(
+    return this.liveMonitorService.getTablesWithActiveOrders(restaurantId);
+  }
+
+  @ApiOperation({ summary: 'Get single table active orders snapshot' })
+  @Get('tables/:tableId')
+  @RequirePermission(PERMISSIONS.LIVE_READ)
+  async getSingleTableSnapshot(
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @Param('tableId') tableId: string,
+  ) {
+    return this.liveMonitorService.getSingleTableSnapshot(
       restaurantId,
-      request.user.id,
+      tableId,
     );
   }
 
-  @ApiOperation({
-    summary: 'Resolve waiter call for a table',
-  })
-  @ApiCookieAuth('gustio_session')
-  @ApiParam({ name: 'restaurantId', type: Number, example: 1 })
-  @ApiParam({
-    name: 'tableId',
-    type: String,
-    example: '1a2d7d9c-5f73-4bf0-b89a-f12474a584d3',
-  })
-  @ApiBody({ required: false, schema: { example: {} } })
-  @ApiResponse({
-    status: 200,
-    description: 'Waiter call resolved successfully',
-  })
-  @Patch('tables/:tableId/waiter-call/resolve')
-  @RequirePermission(PERMISSIONS.LIVE_RESOLVE)
-  async resolveWaiterCall(
+  @ApiOperation({ summary: 'Get completed/canceled orders for a given date' })
+  @Get('history')
+  @RequirePermission(PERMISSIONS.LIVE_READ)
+  async getHistorySnapshot(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Param('tableId') tableId: string,
-    @Req() request: AuthenticatedRequest,
+    @Query('date') dateParam?: string,
   ) {
-    const result = await this.liveMonitorService.resolveWaiterCall(
-      restaurantId,
-      tableId,
-      request.user.id,
-    );
-    await this.liveMonitorGateway.emitOrdersChanged(
-      restaurantId,
-      'updated',
-      tableId,
-      tableId,
-    );
-    return result;
+    return this.liveMonitorService.getHistorySnapshot(restaurantId, dateParam);
   }
 }

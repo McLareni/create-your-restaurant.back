@@ -9,7 +9,6 @@ import {
   Patch,
   Post,
   Query,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -24,8 +23,10 @@ import { CreateOrderDto } from 'src/orders/dto/create-order.dto';
 import { AppendOrderItemsDto } from 'src/orders/dto/append-order-items.dto';
 import { UpdateOrderDto } from 'src/orders/dto/update-order.dto';
 import { PermissionsGuard } from 'src/guards/permissions.guard';
+import { SessionAuthGuard } from 'src/guards/session-auth.guard';
 import { RequirePermission } from 'src/guards/permission.decorator';
-import type { AuthenticatedRequest } from 'src/restaurants/middleware/session-auth.middleware';
+import { CurrentUser } from 'src/users/decorators/current-user.decorator';
+import type { User } from '@prisma/client';
 import { PERMISSIONS } from 'src/common/constants/permissions.constants';
 
 @ApiTags('Orders')
@@ -55,15 +56,6 @@ export class OrdersController {
       orderId,
       appendOrderItemsDto,
     );
-  }
-
-  @ApiOperation({ summary: 'Call waiter from public table menu' })
-  @Post('public/tables/:tableId/call-waiter')
-  callWaiterFromPublicMenu(
-    @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Param('tableId') tableId: string,
-  ) {
-    return this.ordersService.callWaiterFromPublicMenu(restaurantId, tableId);
   }
 
   @ApiOperation({ summary: 'Find public order by short code' })
@@ -96,85 +88,83 @@ export class OrdersController {
 
   @ApiOperation({ summary: 'Create order' })
   @ApiCookieAuth('gustio_session')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(SessionAuthGuard, PermissionsGuard)
   @RequirePermission(PERMISSIONS.ORDERS_MANAGE)
   @Post()
   createOrder(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Body() createOrderDto: CreateOrderDto,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.ordersService.createOrder(
-      restaurantId,
-      createOrderDto,
-      request.user.id,
-    );
+    return this.ordersService.createOrder(restaurantId, createOrderDto);
   }
 
   @ApiOperation({ summary: 'Get restaurant orders' })
   @ApiCookieAuth('gustio_session')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(SessionAuthGuard, PermissionsGuard)
   @RequirePermission(PERMISSIONS.ORDERS_READ)
   @Get()
   getOrders(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
-    @Req() request: AuthenticatedRequest,
+    @CurrentUser() user: User,
     @Query('status', new ParseEnumPipe(OrderStatus, { optional: true }))
     status?: OrderStatus,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.ordersService.getOrders(restaurantId, request.user.id, status);
+    const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
+    const limitNum = Math.min(
+      100,
+      Math.max(1, parseInt(limit || '50', 10) || 50),
+    );
+    return this.ordersService.getOrders(
+      restaurantId,
+      user.id,
+      status,
+      pageNum,
+      limitNum,
+    );
   }
 
   @ApiOperation({ summary: 'Get order by ID' })
   @ApiCookieAuth('gustio_session')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(SessionAuthGuard, PermissionsGuard)
   @RequirePermission(PERMISSIONS.ORDERS_READ)
   @Get(':orderId')
   getOrderById(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('orderId') orderId: string,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.ordersService.getOrderById(
-      restaurantId,
-      orderId,
-      request.user.id,
-    );
+    return this.ordersService.getOrderById(restaurantId, orderId);
   }
 
   @ApiOperation({ summary: 'Update order' })
   @ApiCookieAuth('gustio_session')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(SessionAuthGuard, PermissionsGuard)
   @RequirePermission(PERMISSIONS.ORDERS_MANAGE)
   @Patch(':orderId')
   updateOrder(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('orderId') orderId: string,
     @Body() updateOrderDto: UpdateOrderDto,
-    @Req() request: AuthenticatedRequest,
+    @CurrentUser() user: User,
   ) {
     return this.ordersService.updateOrder(
       restaurantId,
       orderId,
       updateOrderDto,
-      request.user.id,
+      user.id,
     );
   }
 
   @ApiOperation({ summary: 'Delete order' })
   @ApiCookieAuth('gustio_session')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(SessionAuthGuard, PermissionsGuard)
   @RequirePermission(PERMISSIONS.ORDERS_MANAGE)
   @Delete(':orderId')
   deleteOrder(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('orderId') orderId: string,
-    @Req() request: AuthenticatedRequest,
   ) {
-    return this.ordersService.deleteOrder(
-      restaurantId,
-      orderId,
-      request.user.id,
-    );
+    return this.ordersService.deleteOrder(restaurantId, orderId);
   }
 }

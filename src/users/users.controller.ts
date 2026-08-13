@@ -6,14 +6,15 @@ import {
   Post,
   Req,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiBody, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { LogoutDto } from 'src/users/dto/logout.dto';
 import { RequestLoginCodeDto } from 'src/users/dto/request-login-code.dto';
 import { VerifyLoginCodeDto } from 'src/users/dto/verify-login-code.dto';
 import { UsersService } from 'src/users/users.service';
-import type { AuthenticatedRequest } from 'src/restaurants/middleware/session-auth.middleware';
+import { SessionAuthGuard } from 'src/guards/session-auth.guard';
+import { SessionToken } from 'src/users/decorators/current-user.decorator';
 
 @ApiTags('Users')
 @Controller('users')
@@ -49,7 +50,7 @@ export class UsersController {
       },
     );
 
-    if (result?.session?.token) {
+    if (result.session?.token) {
       response.cookie('gustio_session', result.session.token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -59,24 +60,32 @@ export class UsersController {
       });
     }
 
-    return result;
+    return {
+      message: result.message,
+      expiresAt: result.session.expiresAt,
+      session: result.session,
+    };
   }
 
   @ApiOperation({ summary: 'auth.logout_summary' })
-  @ApiBody({ type: LogoutDto })
+  @ApiCookieAuth('gustio_session')
+  @UseGuards(SessionAuthGuard)
   @HttpCode(200)
   @Post('logout')
-  logout(@Body() logoutDto: LogoutDto) {
-    return this.usersService.logout(logoutDto.token);
+  async logout(
+    @SessionToken() token: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.usersService.logout(token);
+    response.clearCookie('gustio_session', { path: '/' });
+    return result;
   }
 
   @ApiOperation({ summary: 'auth.get_me_summary' })
   @ApiCookieAuth('gustio_session')
+  @UseGuards(SessionAuthGuard)
   @Get('me')
-  me(@Req() request: AuthenticatedRequest) {
-    const token = (request.cookies as Record<string, string> | undefined)
-      ?.gustio_session;
-
-    return this.usersService.getMe(token!);
+  me(@SessionToken() token: string) {
+    return this.usersService.getMe(token);
   }
 }

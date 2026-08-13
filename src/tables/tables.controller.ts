@@ -15,13 +15,14 @@ import { UpdateTableDto } from 'src/tables/dto/update-table.dto';
 import { PermissionsGuard } from 'src/guards/permissions.guard';
 import { RequirePermission } from 'src/guards/permission.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions.constants';
+import { SessionAuthGuard } from 'src/guards/session-auth.guard';
 
 @Controller('restaurants/:restaurantId/dining-table')
-@UseGuards(PermissionsGuard)
 export class TablesController {
   constructor(private readonly tablesService: TablesService) {}
 
   @Post()
+  @UseGuards(SessionAuthGuard, PermissionsGuard)
   @RequirePermission(PERMISSIONS.TABLES_MANAGE)
   create(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
@@ -31,12 +32,14 @@ export class TablesController {
   }
 
   @Get()
+  @UseGuards(SessionAuthGuard, PermissionsGuard)
   @RequirePermission(PERMISSIONS.TABLES_READ)
   findAll(@Param('restaurantId', ParseIntPipe) restaurantId: number) {
     return this.tablesService.findAll(restaurantId);
   }
 
   @Patch(':id')
+  @UseGuards(SessionAuthGuard, PermissionsGuard)
   @RequirePermission(PERMISSIONS.TABLES_MANAGE)
   update(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
@@ -47,6 +50,7 @@ export class TablesController {
   }
 
   @Delete(':id')
+  @UseGuards(SessionAuthGuard, PermissionsGuard)
   @RequirePermission(PERMISSIONS.TABLES_MANAGE)
   remove(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
@@ -56,7 +60,6 @@ export class TablesController {
   }
 
   @Get(':id/exists')
-  @RequirePermission(PERMISSIONS.TABLES_READ)
   checkTableExists(
     @Param('restaurantId', ParseIntPipe) restaurantId: number,
     @Param('id') id: string,

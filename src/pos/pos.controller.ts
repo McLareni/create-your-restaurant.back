@@ -5,9 +5,10 @@ import { PermissionsGuard } from 'src/guards/permissions.guard';
 import { RequirePermission } from 'src/guards/permission.decorator';
 import { ActiveRestaurantId } from 'src/common/decorators/active-restaurant-id.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions.constants';
+import { SessionAuthGuard } from 'src/guards/session-auth.guard';
 
 @Controller('pos')
-@UseGuards(PermissionsGuard)
+@UseGuards(SessionAuthGuard, PermissionsGuard)
 export class PosController {
   constructor(private readonly posService: PosService) {}
 

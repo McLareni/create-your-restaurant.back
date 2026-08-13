@@ -2,6 +2,8 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import compression from 'compression';
 import * as express from 'express';
 import {
   i18nValidationErrorFactory,
@@ -21,6 +23,9 @@ async function bootstrap() {
     credentials: true,
   });
 
+  app.use(helmet());
+  app.use(compression());
+
   app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }));
 
   app.use(cookieParser());
@@ -39,7 +44,9 @@ async function bootstrap() {
     new I18nValidationExceptionFilter({ detailedErrors: false }),
   );
 
-  setupSwagger(app);
+  if (process.env.NODE_ENV !== 'production') {
+    setupSwagger(app);
+  }
 
   await app.listen(process.env.PORT ?? 3001, '0.0.0.0');
 }

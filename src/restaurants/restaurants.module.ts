@@ -1,23 +1,13 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { RestaurantsController } from './restaurants.controller';
-import { RestaurantsService } from './restaurants.service';
-import { UsersModule } from '../users/users.module';
-import { SessionAuthMiddleware } from './middleware/session-auth.middleware';
-import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { Module } from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { RestaurantsController } from 'src/restaurants/restaurants.controller';
+import { RestaurantsService } from 'src/restaurants/restaurants.service';
+import { UsersModule } from 'src/users/users.module';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
 @Module({
   imports: [UsersModule],
   controllers: [RestaurantsController],
-  providers: [
-    RestaurantsService,
-    PrismaService,
-    SessionAuthMiddleware,
-    CloudinaryService,
-  ],
+  providers: [RestaurantsService, PrismaService, CloudinaryService],
 })
-export class RestaurantsModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(SessionAuthMiddleware).forRoutes(RestaurantsController);
-  }
-}
+export class RestaurantsModule {}

@@ -22,11 +22,12 @@ import { PermissionsGuard } from 'src/guards/permissions.guard';
 import { RequirePermission } from 'src/guards/permission.decorator';
 import { ActiveRestaurantId } from 'src/common/decorators/active-restaurant-id.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions.constants';
+import { SessionAuthGuard } from 'src/guards/session-auth.guard';
 
 @ApiTags('Combos')
 @ApiHeader({ name: 'x-restaurant-id', required: true })
 @Controller('combos')
-@UseGuards(PermissionsGuard)
+@UseGuards(SessionAuthGuard, PermissionsGuard)
 export class CombosController {
   constructor(private readonly combosService: CombosService) {}
 

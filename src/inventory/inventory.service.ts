@@ -79,7 +79,6 @@ export class InventoryService {
           inventoryItems.map((inv) => [inv.id, inv]),
         );
 
-        const availableDishIds: string[] = [];
         const unavailableDishIds: string[] = [];
 
         for (const dishId of uniqueDishIds) {
@@ -99,23 +98,26 @@ export class InventoryService {
               }
             }
           }
-          if (canBeMade) {
-            availableDishIds.push(dishId);
-          } else {
+          if (!canBeMade) {
             unavailableDishIds.push(dishId);
           }
         }
+
+        if (unavailableDishIds.length > 0) {
+          await tx.dish.updateMany({
+            where: { id: { in: unavailableDishIds } },
+            data: { isAvailable: false },
+          });
+        }
+
+        const availableDishIds = uniqueDishIds.filter(
+          (id) => !unavailableDishIds.includes(id),
+        );
 
         if (availableDishIds.length > 0) {
           await tx.dish.updateMany({
             where: { id: { in: availableDishIds } },
             data: { isAvailable: true },
-          });
-        }
-        if (unavailableDishIds.length > 0) {
-          await tx.dish.updateMany({
-            where: { id: { in: unavailableDishIds } },
-            data: { isAvailable: false },
           });
         }
       }

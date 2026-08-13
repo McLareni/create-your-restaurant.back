@@ -39,12 +39,7 @@ export class OrdersService {
     });
   }
 
-  async createOrder(
-    restaurantId: number,
-    createOrderDto: CreateOrderDto,
-    userId: number,
-  ) {
-    await this.ensureRestaurantAccess(restaurantId, userId);
+  async createOrder(restaurantId: number, createOrderDto: CreateOrderDto) {
     return this.createOrderInternal(restaurantId, createOrderDto);
   }
 
@@ -122,33 +117,6 @@ export class OrdersService {
     return {
       message: 'success.items_appended',
       order: DataMappingUtil.mapOrder(result),
-    };
-  }
-
-  async callWaiterFromPublicMenu(restaurantId: number, tableId: string) {
-    await this.ensureActiveTableBelongsToRestaurant(
-      restaurantId,
-      tableId,
-      this.prisma,
-    );
-    await this.prisma.diningTable.update({
-      where: { id: tableId },
-      data: {
-        isWaiterCallActive: true,
-        waiterCallRequestedAt: new Date(),
-      },
-    });
-
-    await this.liveMonitorGateway.emitOrdersChanged(
-      restaurantId,
-      'updated',
-      tableId,
-      tableId,
-    );
-
-    return {
-      message: 'success.waiter_called',
-      tableId,
     };
   }
 
@@ -384,28 +352,48 @@ export class OrdersService {
     return { itemsToCreate, totalAmount };
   }
 
-  async getOrders(restaurantId: number, userId: number, status?: OrderStatus) {
-    await this.ensureRestaurantAccess(restaurantId, userId);
-    const orders = await this.prisma.order.findMany({
-      where: { restaurantId, status },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        table: { select: { id: true, number: true, type: true } },
-        items: {
-          include: {
-            dish: true,
-            modifiers: {
-              include: { modifierOption: true },
+  async getOrders(
+    restaurantId: number,
+    userId: number,
+    status?: OrderStatus,
+    page = 1,
+    limit = 50,
+  ) {
+    const where = { restaurantId, ...(status && { status }) };
+
+    const [orders, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: (page - 1) * limit,
+        include: {
+          table: { select: { id: true, number: true, type: true } },
+          items: {
+            include: {
+              dish: true,
+              modifiers: {
+                include: { modifierOption: true },
+              },
             },
           },
         },
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+
+    return {
+      data: orders.map((order) => DataMappingUtil.mapOrder(order)),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
       },
-    });
-    return orders.map((order) => DataMappingUtil.mapOrder(order));
+    };
   }
 
-  async getOrderById(restaurantId: number, orderId: string, userId: number) {
-    await this.ensureRestaurantAccess(restaurantId, userId);
+  async getOrderById(restaurantId: number, orderId: string) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, restaurantId },
       include: {
@@ -433,8 +421,6 @@ export class OrdersService {
     updateOrderDto: UpdateOrderDto,
     userId: number,
   ) {
-    await this.ensureRestaurantAccess(restaurantId, userId);
-
     const updatedOrder = await this.prisma.$transaction(async (tx) => {
       await this.ensureOrderBelongsToRestaurant(restaurantId, orderId, tx);
 
@@ -446,9 +432,24 @@ export class OrdersService {
         );
       }
 
+      const currentOrder = await tx.order.findFirst({
+        where: { id: orderId },
+        select: { waiterId: true, status: true },
+      });
+
+      const dataToUpdate: any = { ...updateOrderDto };
+
+      if (
+        updateOrderDto.status === OrderStatus.IN_PROGRESS &&
+        currentOrder?.status === OrderStatus.PENDING &&
+        !currentOrder?.waiterId
+      ) {
+        dataToUpdate.waiterId = userId;
+      }
+
       return await tx.order.update({
         where: { id: orderId },
-        data: updateOrderDto,
+        data: dataToUpdate,
         include: {
           table: { select: { id: true, number: true, type: true } },
           items: {
@@ -478,9 +479,7 @@ export class OrdersService {
     };
   }
 
-  async deleteOrder(restaurantId: number, orderId: string, userId: number) {
-    await this.ensureRestaurantAccess(restaurantId, userId);
-
+  async deleteOrder(restaurantId: number, orderId: string) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, restaurantId },
       select: { id: true, tableId: true },
@@ -502,28 +501,6 @@ export class OrdersService {
     }
 
     return { message: 'success.order_deleted' };
-  }
-
-  private async ensureRestaurantAccess(restaurantId: number, userId: number) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-    if (!user) {
-      throw new NotFoundException('errors.user_not_found');
-    }
-    if (user.role === 'OWNER') {
-      const restaurant = await this.prisma.restaurant.findFirst({
-        where: { id: restaurantId, ownerId: userId },
-        select: { id: true },
-      });
-      if (!restaurant) {
-        throw new NotFoundException('errors.restaurant_not_found');
-      }
-      return;
-    }
-    if (user.restaurantId !== restaurantId || !user.isActive) {
-      throw new BadRequestException('errors.access_denied');
-    }
   }
 
   private async ensureActiveTableBelongsToRestaurant(

@@ -16,10 +16,22 @@ export class CategoriesService {
     restaurantId: number,
     createCategoryDto: CreateCategoryDto,
   ) {
+    const name = createCategoryDto.name.trim();
+    const existing = await this.prismaService.category.findFirst({
+      where: {
+        restaurantId,
+        name: { equals: name, mode: 'insensitive' },
+      },
+    });
+
+    if (existing) {
+      throw new BadRequestException('errors.category_already_exists');
+    }
+
     const category = await this.prismaService.category.create({
       data: {
         restaurantId,
-        name: createCategoryDto.name.trim(),
+        name,
         sortOrder: createCategoryDto.sortOrder ?? 0,
       },
     });
@@ -62,6 +74,21 @@ export class CategoriesService {
     if (!category) {
       throw new NotFoundException('errors.category_not_found');
     }
+
+    if (updateCategoryDto.name) {
+      const name = updateCategoryDto.name.trim();
+      const existing = await this.prismaService.category.findFirst({
+        where: {
+          restaurantId,
+          name: { equals: name, mode: 'insensitive' },
+          id: { not: categoryId },
+        },
+      });
+      if (existing) {
+        throw new BadRequestException('errors.category_already_exists');
+      }
+    }
+
     const updatedCategory = await this.prismaService.category.update({
       where: { id: categoryId },
       data: {

@@ -5,12 +5,12 @@ import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 @Injectable()
 export class CloudinaryCleanupService {
   private readonly logger = new Logger(CloudinaryCleanupService.name);
-  private readonly pendingDeletions: Set<string> = new Set();
+  private readonly pendingDeletions = new Map<string, number>();
 
   constructor(private readonly cloudinaryService: CloudinaryService) {}
 
   scheduleDeletion(publicId: string) {
-    this.pendingDeletions.add(publicId);
+    this.pendingDeletions.set(publicId, 0);
   }
 
   cancelDeletion(publicId: string) {
@@ -23,17 +23,17 @@ export class CloudinaryCleanupService {
       return;
     }
 
-    const idsToDelete = Array.from(this.pendingDeletions);
+    const entries = Array.from(this.pendingDeletions.entries());
     this.pendingDeletions.clear();
 
-    for (const publicId of idsToDelete) {
+    for (const [publicId, attempts] of entries) {
       try {
         await this.cloudinaryService.deleteImage(publicId);
       } catch {
-        this.logger.error(
-          `errors.cloudinary_background_deletion_failed: ${publicId}`,
-        );
-        this.pendingDeletions.add(publicId);
+        this.logger.error(`errors.cloudinary_deletion_failed: ${publicId}`);
+        if (attempts < 3) {
+          this.pendingDeletions.set(publicId, attempts + 1);
+        }
       }
     }
   }

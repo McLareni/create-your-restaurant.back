@@ -8,6 +8,7 @@ import { randomInt, randomUUID } from 'node:crypto';
 import { Resend } from 'resend';
 import { EnumRole } from '@prisma/client';
 import { I18nService, I18nContext } from 'nestjs-i18n';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { getEmailVerificationTemplate } from 'src/users/templates/email-verification.template';
 
@@ -19,10 +20,12 @@ export type SessionMetadata = {
 const AUTH_CONFIG = {
   OTP_LIFE_TIME_MS: 120000,
   SESSION_LIFE_TIME_MS: 2592000000,
+  REQUEST_COOLDOWN_MS: 60000,
   BRUTEFORCE: {
     MAX_ATTEMPTS: 5,
     LOCK_DURATION_MS: 300000,
   },
+  MAX_MAP_SIZE: 10000,
 };
 
 @Injectable()
@@ -35,10 +38,27 @@ export class UsersService {
     }
   >();
 
+  private readonly lastCodeRequest = new Map<string, number>();
+
   constructor(
     private readonly prismaService: PrismaService,
     private readonly i18n: I18nService,
   ) {}
+
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  cleanupMemoryMaps() {
+    const now = Date.now();
+    for (const [email, attempt] of this.loginAttempts.entries()) {
+      if (attempt.lockUntil !== 0 && attempt.lockUntil < now) {
+        this.loginAttempts.delete(email);
+      }
+    }
+    for (const [email, timestamp] of this.lastCodeRequest.entries()) {
+      if (now - timestamp > AUTH_CONFIG.REQUEST_COOLDOWN_MS) {
+        this.lastCodeRequest.delete(email);
+      }
+    }
+  }
 
   private getResendClient(): Resend {
     const apiKey = process.env.RESEND_API_KEY;
@@ -49,6 +69,25 @@ export class UsersService {
   }
 
   async requestLoginCode(email: string) {
+    const lastRequestAt = this.lastCodeRequest.get(email);
+    if (
+      lastRequestAt &&
+      Date.now() - lastRequestAt < AUTH_CONFIG.REQUEST_COOLDOWN_MS
+    ) {
+      throw new BadRequestException(
+        'errors.please_wait_before_requesting_again',
+      );
+    }
+
+    if (this.loginAttempts.size >= AUTH_CONFIG.MAX_MAP_SIZE) {
+      this.loginAttempts.clear();
+    }
+    if (this.lastCodeRequest.size >= AUTH_CONFIG.MAX_MAP_SIZE) {
+      this.lastCodeRequest.clear();
+    }
+
+    this.lastCodeRequest.set(email, Date.now());
+
     const resend = this.getResendClient();
     this.loginAttempts.delete(email);
 
@@ -154,6 +193,7 @@ export class UsersService {
     }
 
     this.loginAttempts.delete(email);
+    this.lastCodeRequest.delete(email);
 
     const sessionExpiresAt = new Date(
       Date.now() + AUTH_CONFIG.SESSION_LIFE_TIME_MS,
@@ -219,32 +259,40 @@ export class UsersService {
   async getMe(sessionToken: string) {
     const user = await this.validateSessionToken(sessionToken);
 
-    const restaurants =
-      user.role === EnumRole.OWNER
-        ? await this.prismaService.restaurant.findMany({
-            where: { ownerId: user.id },
-            orderBy: { id: 'asc' },
-          })
-        : user.restaurantId
-          ? await this.prismaService.restaurant.findMany({
-              where: { id: user.restaurantId },
-            })
-          : [];
+    // Get all user rows with this email
+    const allUserRows = await this.prismaService.user.findMany({
+      where: { email: user.email },
+    });
+
+    const restaurantIds = allUserRows
+      .map((u) => u.restaurantId)
+      .filter((id) => id !== null);
+    const ownerIds = allUserRows
+      .filter((u) => u.role === 'OWNER')
+      .map((u) => u.id);
+
+    const restaurants = await this.prismaService.restaurant.findMany({
+      where: {
+        OR: [{ id: { in: restaurantIds } }, { ownerId: { in: ownerIds } }],
+      },
+      orderBy: { id: 'asc' },
+    });
 
     return {
       user: {
-        id: user.id,
+        id: user.id, // Primary session ID
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
         photo: user.photo,
-        role: user.role,
+        role: user.role, // primary role, though PermissionsGuard manages context dynamically
         phone: user.phone,
         restaurants: restaurants.map((restaurant) => ({
           id: restaurant.id,
           name: restaurant.title,
           slug: restaurant.slug,
           imageUrl: restaurant.imageUrl,
+          isOwner: ownerIds.includes(restaurant.ownerId),
         })),
       },
     };
