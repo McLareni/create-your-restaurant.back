@@ -293,6 +293,7 @@ export class UsersService {
           slug: restaurant.slug,
           imageUrl: restaurant.imageUrl,
           isOwner: ownerIds.includes(restaurant.ownerId),
+          currency: restaurant.currency,
         })),
       },
     };

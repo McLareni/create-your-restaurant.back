@@ -69,6 +69,7 @@ export class MenuService {
     return {
       restaurantId: restaurant.id,
       restaurantName: restaurant.title,
+      currency: restaurant.currency,
       visualSettings: restaurant.visualSettings,
       categories: restaurant.categories.map((category) => ({
         ...category,
