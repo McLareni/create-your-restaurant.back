@@ -7,28 +7,29 @@ datasource db {
 }
 
 model User {
-  id                 Int          @id @default(autoincrement())
+  id                 Int                  @id @default(autoincrement())
   email              String
   firstName          String?
   lastName           String?
   photo              String?
   phone              String?
-  role               EnumRole     @default(STAFF)
-  customRole         String?      
+  role               EnumRole             @default(STAFF)
+  customRole         String?
   pinCode            String?
   restaurantId       Int?
-  isActive           Boolean      @default(true)
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @default(now()) @updatedAt
-  orders             Order[]      @relation("WaiterOrders")
+  isActive           Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @default(now()) @updatedAt
+  orders             Order[]              @relation("WaiterOrders")
   sessions           Session[]
-  restaurants        Restaurant[] @relation("RestaurantOwner")
-  staffRestaurant    Restaurant?  @relation("RestaurantStaff", fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurants        Restaurant[]         @relation("RestaurantOwner")
+  staffRestaurant    Restaurant?          @relation("RestaurantStaff", fields: [restaurantId], references: [id], onDelete: Cascade)
+  inventoryStates    InventoryItemState[]
   loginCodeHash      String?
   loginCodeExpiresAt DateTime?
 
-  @@index([email])
   @@unique([email, restaurantId])
+  @@index([email])
 }
 
 model Session {
@@ -95,17 +96,33 @@ model PosIntegration {
 }
 
 model InventoryItem {
-  id               String           @id @default(uuid())
+  id               String               @id @default(uuid())
   restaurantId     Int
   name             String
-  stock            Float            @default(0)
+  stock            Float                @default(0)
   unit             String
-  restaurant       Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  restaurant       Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  stateHistory     InventoryItemState[]
   ingredientDishes DishIngredient[]
 
   @@unique([restaurantId, name])
+}
+
+model InventoryItemState {
+  id              String        @id @default(uuid())
+  inventoryItemId String
+  quantity        Float
+  recordedAt      DateTime
+  note            String?
+  createdByUserId Int?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  createdByUser   User?         @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([inventoryItemId, recordedAt])
 }
 
 model DishIngredient {
@@ -257,19 +274,19 @@ model DishModifier {
 }
 
 model DiningTable {
-  id           String      @id @default(uuid())
-  number       Int
-  type         String
-  zone         String?
-  status       TableStatus @default(INACTIVE)
-  isWaiterCallActive Boolean   @default(false)
+  id                    String      @id @default(uuid())
+  number                Int
+  type                  String
+  zone                  String?
+  status                TableStatus @default(INACTIVE)
+  isWaiterCallActive    Boolean     @default(false)
   waiterCallRequestedAt DateTime?
-  waiterCallType String?   @default("WAITER")
-  restaurantId Int
-  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  orders       Order[]
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  waiterCallType        String?     @default("WAITER")
+  restaurantId          Int
+  restaurant            Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orders                Order[]
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 
   @@unique([number, restaurantId])
 }

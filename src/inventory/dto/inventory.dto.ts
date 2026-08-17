@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsDateString,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -39,6 +40,11 @@ export class UpdateInventoryItemDto {
   @IsNumber({}, { message: 'errors.validation_number' })
   @Min(0, { message: 'errors.validation_min_0' })
   stock?: number;
+
+  @ApiPropertyOptional({ example: '2026-08-17T12:00:00.000Z' })
+  @IsOptional()
+  @IsDateString({}, { message: 'errors.validation_date' })
+  recordedAt?: string;
 
   @ApiPropertyOptional({ example: 'кг' })
   @IsOptional()

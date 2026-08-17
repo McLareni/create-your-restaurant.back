@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { User } from '@prisma/client';
 import { InventoryService } from 'src/inventory/inventory.service';
 import {
   CreateInventoryItemDto,
@@ -19,6 +20,7 @@ import { RequirePermission } from 'src/guards/permission.decorator';
 import { ActiveRestaurantId } from 'src/common/decorators/active-restaurant-id.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions.constants';
 import { SessionAuthGuard } from 'src/guards/session-auth.guard';
+import { CurrentUser } from 'src/users/decorators/current-user.decorator';
 
 @ApiTags('Inventory')
 @Controller('inventory')
@@ -41,8 +43,20 @@ export class InventoryController {
   create(
     @ActiveRestaurantId() restaurantId: number,
     @Body() dto: CreateInventoryItemDto,
+    @CurrentUser() user: User,
   ) {
-    return this.inventoryService.create(restaurantId, dto);
+    return this.inventoryService.create(restaurantId, dto, user.id);
+  }
+
+  @ApiOperation({ summary: 'Get inventory history by item' })
+  @ApiCookieAuth('gustio_session')
+  @RequirePermission(PERMISSIONS.INVENTORY_READ)
+  @Get(':id/history')
+  getHistory(
+    @ActiveRestaurantId() restaurantId: number,
+    @Param('id') id: string,
+  ) {
+    return this.inventoryService.getHistory(restaurantId, id);
   }
 
   @ApiOperation({ summary: 'Update inventory stock or details' })
@@ -53,8 +67,9 @@ export class InventoryController {
     @ActiveRestaurantId() restaurantId: number,
     @Param('id') id: string,
     @Body() dto: UpdateInventoryItemDto,
+    @CurrentUser() user: User,
   ) {
-    return this.inventoryService.update(restaurantId, id, dto);
+    return this.inventoryService.update(restaurantId, id, dto, user.id);
   }
 
   @ApiOperation({ summary: 'Delete inventory item' })
