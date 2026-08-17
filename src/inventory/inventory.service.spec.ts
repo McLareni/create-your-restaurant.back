@@ -45,10 +45,19 @@ describe('InventoryService', () => {
   });
 
   it('should create an inventory item and save its initial state history', async () => {
-    inventoryItemCreate.mockResolvedValue({ id: 'item-1', stock: 15, name: 'Tomato', unit: 'kg' });
+    inventoryItemCreate.mockResolvedValue({
+      id: 'item-1',
+      stock: 15,
+      name: 'Tomato',
+      unit: 'kg',
+    });
     inventoryItemStateCreate.mockResolvedValue({ id: 'state-1' });
 
-    const result = await service.create(1, { name: 'Tomato', stock: 15, unit: 'kg' }, 7);
+    const result = await service.create(
+      1,
+      { name: 'Tomato', stock: 15, unit: 'kg' },
+      7,
+    );
 
     expect(inventoryItemCreate).toHaveBeenCalledWith({
       data: {
@@ -66,15 +75,29 @@ describe('InventoryService', () => {
         createdByUserId: 7,
       },
     });
-    expect(result).toEqual({ id: 'item-1', stock: 15, name: 'Tomato', unit: 'kg' });
+    expect(result).toEqual({
+      id: 'item-1',
+      stock: 15,
+      name: 'Tomato',
+      unit: 'kg',
+    });
   });
 
   it('should append a dated stock state when the quantity is updated', async () => {
-    inventoryItemFindFirst.mockResolvedValue({ id: 'item-1', restaurantId: 1, stock: 12 });
+    inventoryItemFindFirst.mockResolvedValue({
+      id: 'item-1',
+      restaurantId: 1,
+      stock: 12,
+    });
 
     const txMock = {
       inventoryItem: {
-        update: jest.fn().mockResolvedValue({ id: 'item-1', stock: 20, name: 'Tomato', unit: 'kg' }),
+        update: jest.fn().mockResolvedValue({
+          id: 'item-1',
+          stock: 20,
+          name: 'Tomato',
+          unit: 'kg',
+        }),
       },
       inventoryItemState: {
         create: inventoryItemStateCreate,
@@ -88,9 +111,16 @@ describe('InventoryService', () => {
       inventoryItemStateCreate,
     };
 
-    prismaServiceMock.$transaction.mockImplementation(async (callback) => callback(txMock));
+    prismaServiceMock.$transaction.mockImplementation((callback) =>
+      callback(txMock),
+    );
 
-    await service.update(1, 'item-1', { stock: 20, recordedAt: '2026-08-17T12:00:00.000Z' }, 9);
+    await service.update(
+      1,
+      'item-1',
+      { stock: 20, recordedAt: '2026-08-17T12:00:00.000Z' },
+      9,
+    );
 
     expect(txMock.inventoryItem.update).toHaveBeenCalledWith({
       where: { id: 'item-1' },
