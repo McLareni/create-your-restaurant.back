@@ -17,13 +17,47 @@ export class InventoryService {
   async getAll(restaurantId: number) {
     return await this.prismaService.inventoryItem.findMany({
       where: { restaurantId },
+      include: {
+        stateHistory: {
+          orderBy: { recordedAt: 'desc' },
+          take: 1,
+        },
+      },
       orderBy: { name: 'asc' },
     });
   }
 
-  async create(restaurantId: number, dto: CreateInventoryItemDto) {
+  async getHistory(restaurantId: number, inventoryItemId: string) {
+    const item = await this.prismaService.inventoryItem.findFirst({
+      where: { id: inventoryItemId, restaurantId },
+    });
+    if (!item) {
+      throw new NotFoundException('errors.inventory_item_not_found');
+    }
+
+    return await this.prismaService.inventoryItemState.findMany({
+      where: { inventoryItemId },
+      include: {
+        createdByUser: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { recordedAt: 'desc' },
+    });
+  }
+
+  async create(
+    restaurantId: number,
+    dto: CreateInventoryItemDto,
+    userId?: number,
+  ) {
     try {
-      return await this.prismaService.inventoryItem.create({
+      const item = await this.prismaService.inventoryItem.create({
         data: {
           restaurantId,
           name: dto.name,
@@ -31,6 +65,17 @@ export class InventoryService {
           unit: dto.unit,
         },
       });
+
+      await this.prismaService.inventoryItemState.create({
+        data: {
+          inventoryItemId: item.id,
+          quantity: item.stock,
+          recordedAt: new Date(),
+          createdByUserId: userId ?? null,
+        },
+      });
+
+      return item;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -42,7 +87,12 @@ export class InventoryService {
     }
   }
 
-  async update(restaurantId: number, id: string, dto: UpdateInventoryItemDto) {
+  async update(
+    restaurantId: number,
+    id: string,
+    dto: UpdateInventoryItemDto,
+    userId?: number,
+  ) {
     const item = await this.prismaService.inventoryItem.findFirst({
       where: { id, restaurantId },
     });
@@ -50,16 +100,44 @@ export class InventoryService {
       throw new NotFoundException('errors.inventory_item_not_found');
     }
     return await this.prismaService.$transaction(async (tx) => {
+      const data: Prisma.InventoryItemUpdateInput = {};
+
+      if (dto.name !== undefined) {
+        data.name = dto.name;
+      }
+      if (dto.unit !== undefined) {
+        data.unit = dto.unit;
+      }
+      if (dto.stock !== undefined) {
+        data.stock = dto.stock;
+      }
+
       const updatedItem = await tx.inventoryItem.update({
         where: { id },
-        data: dto,
+        data,
       });
+
+      if (dto.stock !== undefined) {
+        await tx.inventoryItemState.create({
+          data: {
+            inventoryItemId: id,
+            quantity: dto.stock,
+            recordedAt: dto.recordedAt ? new Date(dto.recordedAt) : new Date(),
+            createdByUserId: userId ?? null,
+          },
+        });
+      }
+
       const affectedIngredients = await tx.dishIngredient.findMany({
         where: { inventoryItemId: id },
         select: { dishId: true },
       });
       const uniqueDishIds = Array.from(
-        new Set(affectedIngredients.map((ing) => ing.dishId)),
+        new Set(
+          affectedIngredients
+            .map((ing) => ing.dishId)
+            .filter((dishId): dishId is string => typeof dishId === 'string'),
+        ),
       );
       if (uniqueDishIds.length > 0) {
         const allIngredientsForDishes = await tx.dishIngredient.findMany({
@@ -111,7 +189,7 @@ export class InventoryService {
         }
 
         const availableDishIds = uniqueDishIds.filter(
-          (id) => !unavailableDishIds.includes(id),
+          (dishId) => !unavailableDishIds.includes(dishId),
         );
 
         if (availableDishIds.length > 0) {
