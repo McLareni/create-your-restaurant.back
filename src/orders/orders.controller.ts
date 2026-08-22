@@ -86,6 +86,16 @@ export class OrdersController {
     );
   }
 
+  @ApiOperation({ summary: 'Mock public card payment for an order' })
+  @Post('public/tables/:tableId/:orderId/pay')
+  payPublicOrder(
+    @Param('restaurantId', ParseIntPipe) restaurantId: number,
+    @Param('tableId') tableId: string,
+    @Param('orderId') orderId: string,
+  ) {
+    return this.ordersService.payPublicOrder(restaurantId, tableId, orderId);
+  }
+
   @ApiOperation({ summary: 'Create order' })
   @ApiCookieAuth('gustio_session')
   @UseGuards(SessionAuthGuard, PermissionsGuard)

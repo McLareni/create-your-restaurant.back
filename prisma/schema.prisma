@@ -282,6 +282,7 @@ model DiningTable {
   isWaiterCallActive    Boolean     @default(false)
   waiterCallRequestedAt DateTime?
   waiterCallType        String?     @default("WAITER")
+  waiterCallPaymentMethod String?
   restaurantId          Int
   restaurant            Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   orders                Order[]
@@ -402,6 +403,7 @@ enum OrderStatus {
   IN_PROGRESS
   READY
   COMPLETED
+  PAID
   CANCELED
 }
 

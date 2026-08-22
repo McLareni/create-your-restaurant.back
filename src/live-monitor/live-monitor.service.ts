@@ -57,6 +57,7 @@ export class LiveMonitorService {
         isWaiterCallActive: true,
         waiterCallRequestedAt: true,
         waiterCallType: true,
+        waiterCallPaymentMethod: true,
         zone: true,
         orders: {
           where: {
@@ -142,6 +143,7 @@ export class LiveMonitorService {
         isWaiterCallActive: true,
         waiterCallRequestedAt: true,
         waiterCallType: true,
+        waiterCallPaymentMethod: true,
         zone: true,
         orders: {
           where: {
@@ -191,6 +193,7 @@ export class LiveMonitorService {
           isWaiterCallActive: table.isWaiterCallActive,
           waiterCallRequestedAt: table.waiterCallRequestedAt,
           waiterCallType: table.waiterCallType,
+          waiterCallPaymentMethod: table.waiterCallPaymentMethod,
           zone: table.zone,
           activeOrderCount: table.orders.length,
           activeOrdersTotalAmount,
@@ -226,7 +229,7 @@ export class LiveMonitorService {
     const orders = await this.prisma.order.findMany({
       where: {
         restaurantId,
-        status: { in: [OrderStatus.COMPLETED, OrderStatus.CANCELED] },
+        status: { in: [OrderStatus.COMPLETED, OrderStatus.PAID, OrderStatus.CANCELED] },
         updatedAt: { gte: startOfDay, lte: endOfDay },
       },
       orderBy: { updatedAt: 'desc' },

@@ -63,6 +63,7 @@ export class OrdersService {
       }
       if (
         existingOrder.status === OrderStatus.COMPLETED ||
+        existingOrder.status === OrderStatus.PAID ||
         existingOrder.status === OrderStatus.CANCELED
       ) {
         throw new BadRequestException('errors.order_closed');
@@ -136,14 +137,26 @@ export class OrdersService {
       throw new BadRequestException('errors.order_code_required');
     }
 
+    const numericOrderNumber = Number(normalizedCode);
+    const isOrderNumber =
+      /^\d+$/.test(normalizedCode) && Number.isSafeInteger(numericOrderNumber);
+
     const matchedOrders = await this.prisma.order.findMany({
       where: {
         restaurantId,
         tableId,
-        id: {
-          startsWith: normalizedCode,
-          mode: 'insensitive',
+        status: {
+          notIn: [OrderStatus.COMPLETED, OrderStatus.PAID, OrderStatus.CANCELED],
         },
+        OR: [
+          ...(isOrderNumber ? [{ orderNumber: numericOrderNumber }] : []),
+          {
+            id: {
+              startsWith: normalizedCode,
+              mode: 'insensitive',
+            },
+          },
+        ],
       },
       orderBy: {
         createdAt: 'desc',
@@ -178,6 +191,9 @@ export class OrdersService {
         id: orderId,
         restaurantId,
         tableId,
+        status: {
+          notIn: [OrderStatus.COMPLETED, OrderStatus.PAID, OrderStatus.CANCELED],
+        },
       },
       include: {
         table: { select: { id: true, number: true, type: true } },
@@ -200,6 +216,54 @@ export class OrdersService {
 
     return {
       order: DataMappingUtil.mapOrder(order),
+    };
+  }
+
+  async payPublicOrder(restaurantId: number, tableId: string, orderId: string) {
+    await this.ensureActiveTableBelongsToRestaurant(
+      restaurantId,
+      tableId,
+      this.prisma,
+    );
+
+    const existingOrder = await this.prisma.order.findFirst({
+      where: { id: orderId, restaurantId, tableId },
+      select: { id: true, status: true },
+    });
+
+    if (!existingOrder) {
+      throw new NotFoundException('errors.order_not_found');
+    }
+    if (existingOrder.status === OrderStatus.CANCELED) {
+      throw new BadRequestException('errors.order_closed');
+    }
+
+    const paidOrder = await this.prisma.order.update({
+      where: { id: orderId },
+      data: { status: OrderStatus.PAID },
+      include: {
+        table: { select: { id: true, number: true, type: true } },
+        items: {
+          include: {
+            dish: true,
+            modifiers: { include: { modifierOption: true } },
+          },
+        },
+      },
+    });
+
+    if (paidOrder.tableId) {
+      await this.liveMonitorGateway.emitOrdersChanged(
+        restaurantId,
+        'updated',
+        paidOrder.id,
+        paidOrder.tableId,
+      );
+    }
+
+    return {
+      message: 'success.order_paid',
+      order: DataMappingUtil.mapOrder(paidOrder),
     };
   }
 

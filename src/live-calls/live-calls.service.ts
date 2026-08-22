@@ -20,6 +20,7 @@ export class LiveCallsService {
         id: true,
         number: true,
         waiterCallType: true,
+        waiterCallPaymentMethod: true,
         waiterCallRequestedAt: true,
       },
       orderBy: { waiterCallRequestedAt: 'asc' },
@@ -30,6 +31,7 @@ export class LiveCallsService {
       tableId: table.id,
       tableNumber: table.number,
       type: table.waiterCallType || 'WAITER',
+      paymentMethod: table.waiterCallPaymentMethod,
       createdAt:
         table.waiterCallRequestedAt?.toISOString() || new Date().toISOString(),
     }));
@@ -53,6 +55,7 @@ export class LiveCallsService {
       data: {
         isWaiterCallActive: false,
         waiterCallRequestedAt: null,
+        waiterCallPaymentMethod: null,
       },
     });
 
@@ -85,6 +88,7 @@ export class LiveCallsService {
         isWaiterCallActive: true,
         waiterCallRequestedAt: new Date(),
         waiterCallType: data.type,
+        waiterCallPaymentMethod: data.type === 'BILL' ? data.paymentMethod ?? null : null,
       },
     });
 
