@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { TriggerCallDto } from './dto/trigger-call.dto';
+import { TriggerCallDto, WaiterCallType } from './dto/trigger-call.dto';
 
 @Injectable()
 export class LiveCallsService {
@@ -88,7 +88,10 @@ export class LiveCallsService {
         isWaiterCallActive: true,
         waiterCallRequestedAt: new Date(),
         waiterCallType: data.type,
-        waiterCallPaymentMethod: data.type === 'BILL' ? data.paymentMethod ?? null : null,
+        waiterCallPaymentMethod:
+          data.type === WaiterCallType.BILL
+            ? (data.paymentMethod ?? null)
+            : null,
       },
     });
 

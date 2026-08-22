@@ -23,7 +23,11 @@ export class TriggerCallDto {
   @IsEnum(WaiterCallType, { message: 'errors.validation_enum' })
   type: WaiterCallType;
 
-  @ApiProperty({ description: 'Requested payment method for a bill call', enum: PaymentMethod, required: false })
+  @ApiProperty({
+    description: 'Requested payment method for a bill call',
+    enum: PaymentMethod,
+    required: false,
+  })
   @IsEnum(PaymentMethod, { message: 'errors.validation_enum' })
   @IsOptional()
   paymentMethod?: PaymentMethod;

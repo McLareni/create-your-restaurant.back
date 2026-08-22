@@ -229,7 +229,9 @@ export class LiveMonitorService {
     const orders = await this.prisma.order.findMany({
       where: {
         restaurantId,
-        status: { in: [OrderStatus.COMPLETED, OrderStatus.PAID, OrderStatus.CANCELED] },
+        status: {
+          in: [OrderStatus.COMPLETED, OrderStatus.PAID, OrderStatus.CANCELED],
+        },
         updatedAt: { gte: startOfDay, lte: endOfDay },
       },
       orderBy: { updatedAt: 'desc' },

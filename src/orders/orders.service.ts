@@ -146,7 +146,11 @@ export class OrdersService {
         restaurantId,
         tableId,
         status: {
-          notIn: [OrderStatus.COMPLETED, OrderStatus.PAID, OrderStatus.CANCELED],
+          notIn: [
+            OrderStatus.COMPLETED,
+            OrderStatus.PAID,
+            OrderStatus.CANCELED,
+          ],
         },
         OR: [
           ...(isOrderNumber ? [{ orderNumber: numericOrderNumber }] : []),
@@ -192,7 +196,11 @@ export class OrdersService {
         restaurantId,
         tableId,
         status: {
-          notIn: [OrderStatus.COMPLETED, OrderStatus.PAID, OrderStatus.CANCELED],
+          notIn: [
+            OrderStatus.COMPLETED,
+            OrderStatus.PAID,
+            OrderStatus.CANCELED,
+          ],
         },
       },
       include: {
